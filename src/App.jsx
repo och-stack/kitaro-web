@@ -1,7 +1,9 @@
+
 import { Navigate, Route, Routes } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import CollectionRequests from "./pages/CollectionRequests";
 
 function App() {
   return (
@@ -9,10 +11,24 @@ function App() {
       <Navbar />
 
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route
+          path="/"
+          element={<Navigate to="/login" replace />}
+        />
+
         <Route path="/login" element={<Login />} />
+
         <Route path="/signup" element={<Signup />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+
+        <Route
+          path="/collection-requests"
+          element={<CollectionRequests />}
+        />
+
+        <Route
+          path="*"
+          element={<Navigate to="/login" replace />}
+        />
       </Routes>
     </>
   );
