@@ -1,10 +1,75 @@
-
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import supabase from "../supabaseClient";
 
 function Signup() {
-    function handleSubmit(event) {
+    const navigate = useNavigate();
+    const [error, setError] = useState("");
+    const [message, setMessage] = useState("");
+    const [loading, setLoading] = useState(false);
+
+    async function handleSubmit(event) {
         event.preventDefault();
-        // Connect to the account creation API later.
+
+        setError("");
+        setMessage("");
+        setLoading(true);
+
+        const formData = new FormData(event.currentTarget);
+
+        const display_name = formData.get("displayName");
+        const email = formData.get("email");
+        const password = formData.get("password");
+
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL.replace(/\/$/, "");
+
+            const response = await fetch(`${apiUrl}/api/auth/signup`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    display_name,
+                    email,
+                    password,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || "Unable to create account");
+            }
+
+            setMessage(
+                "Account created successfully! Please log in to continue."
+            );
+
+            setTimeout(() => {
+                navigate("/login");
+            }, 2000);
+
+        } catch (error) {
+            setError(error.message);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function handleGoogleSignup() {
+        setError("");
+
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+                redirectTo: `${window.location.origin}/dashboard`,
+            },
+        });
+
+        if (error) {
+            setError(error.message);
+        }
     }
 
     return (
@@ -59,10 +124,36 @@ function Signup() {
                         />
                     </div>
 
-                    <button type="submit" className="btn btn-kitaro w-100">
-                        Create Account
+                    {error && (
+                        <p className="text-danger" role="alert">
+                            {error}
+                        </p>
+                    )}
+
+                    {message && (
+                        <p className="text-success" role="status">
+                            {message}
+                        </p>
+                    )}
+
+                    <button
+                        type="submit"
+                        className="btn btn-kitaro w-100"
+                        disabled={loading || !!message}
+                    >
+                        {loading ? "Creating account..." : "Create Account"}
                     </button>
                 </form>
+
+                <div className="my-3 text-center">OR</div>
+
+                <button
+                    type="button"
+                    className="btn btn-outline-secondary w-100"
+                    onClick={handleGoogleSignup}
+                >
+                    Continue with Google
+                </button>
 
                 <p className="auth-footer">
                     Already have an account? <Link to="/login">Log in</Link>
