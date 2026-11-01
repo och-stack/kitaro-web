@@ -1,95 +1,261 @@
 
 import { useEffect, useState } from "react";
 import {
+    ResponsiveContainer,
+    PieChart,
+    Pie,
+    Cell,
+    Tooltip,
+    Legend,
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    BarChart,
+    Bar,
+} from "recharts";
+
+import {
     checkBackendHealth,
     getWasteHotspots,
     getWasteComposition,
     getWasteTrends,
 } from "../services/api";
 
-function AnalyticsSection({ title, description, data, loading, error }) {
-    // Convert the returned data into rows
-    const rows = Array.isArray(data)
-        ? data
-        : data && typeof data === "object"
-            ? [data]
-            : [];
+// Chart colours
+const CHART_COLORS = [
+    "#287B68",
+    "#BC7653",
+    "#E5B85C",
+    "#719B91",
+    "#8B9DAA",
+    "#A8B98A",
+];
 
-    // Get column names from the returned data
-    const columns = rows.length > 0
-        ? Object.keys(rows[0])
-        : [];
+// Extract analytics data from the API response
+function getRows(result) {
+    const data =
+        result?.analytics ??
+        result?.data?.analytics ??
+        result?.data ??
+        result;
 
-    function formatValue(value) {
-        if (value === null || value === undefined) {
-            return "-";
-        }
+    return Array.isArray(data) ? data : [];
+}
 
-        if (typeof value === "object") {
-            return JSON.stringify(value);
-        }
+// Format numbers
+function formatNumber(value) {
+    return Number(value || 0).toLocaleString();
+}
 
-        return String(value);
-    }
+// Waste Hotspot Analysis
+function WasteHotspotChart({ data }) {
+    const chartData = data.map((item) => ({
+        area: item.area || "Unknown area",
+        report_count: Number(item.report_count || 0),
+        total_weight: Number(item.total_weight || 0),
+    }));
 
     return (
         <section className="card shadow-sm border-0 mb-4">
             <div className="card-body">
-                <h2 className="h5 mb-1">{title}</h2>
-                <p className="text-muted small">{description}</p>
+                <h2 className="h5 mb-1">Waste Hotspot Analysis</h2>
 
-                {loading && (
-                    <p className="text-muted">Loading analytics...</p>
-                )}
+                <p className="text-muted small">
+                    Areas ranked by the number of waste reports.
+                </p>
 
-                {error && (
-                    <div className="alert alert-danger">
-                        {error}
-                    </div>
-                )}
-
-                {!loading && !error && rows.length === 0 && (
+                {chartData.length === 0 ? (
                     <p className="text-muted mb-0">
-                        No analytics data available yet.
+                        No hotspot data available yet.
                     </p>
+                ) : (
+                    <ResponsiveContainer width="100%" height={320}>
+                        <BarChart
+                            data={chartData}
+                            layout="vertical"
+                            margin={{
+                                top: 10,
+                                right: 25,
+                                left: 20,
+                                bottom: 10,
+                            }}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" />
+
+                            <XAxis
+                                type="number"
+                                allowDecimals={false}
+                            />
+
+                            <YAxis
+                                type="category"
+                                dataKey="area"
+                                width={110}
+                            />
+
+                            <Tooltip
+                                formatter={(value) => [
+                                    formatNumber(value),
+                                    "Reports",
+                                ]}
+                            />
+
+                            <Bar
+                                dataKey="report_count"
+                                name="Reports"
+                                radius={[0, 6, 6, 0]}
+                            >
+                                {chartData.map((item, index) => (
+                                    <Cell
+                                        key={`${item.area}-${index}`}
+                                        fill={
+                                            CHART_COLORS[
+                                            index % CHART_COLORS.length
+                                            ]
+                                        }
+                                    />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
                 )}
+            </div>
+        </section>
+    );
+}
 
-                {!loading && !error && rows.length > 0 && (
-                    <>
-                        <p className="small text-muted">
-                            {rows.length} record(s)
-                        </p>
+// Waste Composition Analysis
+function WasteCompositionChart({ data }) {
+    const chartData = data.map((item) => ({
+        name: item.waste_type || "Unknown",
+        value: Number(item.report_count || 0),
+        total_weight: Number(item.total_weight || 0),
+    }));
 
-                        <div className="table-responsive">
-                            <table className="table table-hover align-middle">
-                                <thead>
-                                    <tr>
-                                        {columns.map((column) => (
-                                            <th key={column}>
-                                                {column
-                                                    .replaceAll("_", " ")
-                                                    .replace(/\b\w/g, (letter) =>
-                                                        letter.toUpperCase()
-                                                    )}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
+    return (
+        <section className="card shadow-sm border-0 mb-4">
+            <div className="card-body">
+                <h2 className="h5 mb-1">Waste Composition Analysis</h2>
 
-                                <tbody>
-                                    {rows.map((row, rowIndex) => (
-                                        <tr key={rowIndex}>
-                                            {columns.map((column) => (
-                                                <td key={column}>
-                                                    {formatValue(row[column])}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </>
+                <p className="text-muted small">
+                    Distribution of reports by waste category.
+                </p>
+
+                {chartData.length === 0 ? (
+                    <p className="text-muted mb-0">
+                        No composition data available yet.
+                    </p>
+                ) : (
+                    <ResponsiveContainer width="100%" height={340}>
+                        <PieChart>
+                            <Pie
+                                data={chartData}
+                                dataKey="value"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={105}
+                                label={({ name, percent }) =>
+                                    `${name}: ${(percent * 100).toFixed(1)}%`
+                                }
+                            >
+                                {chartData.map((item, index) => (
+                                    <Cell
+                                        key={`${item.name}-${index}`}
+                                        fill={
+                                            CHART_COLORS[
+                                            index % CHART_COLORS.length
+                                            ]
+                                        }
+                                    />
+                                ))}
+                            </Pie>
+
+                            <Tooltip
+                                formatter={(value) => [
+                                    formatNumber(value),
+                                    "Reports",
+                                ]}
+                            />
+
+                            <Legend />
+                        </PieChart>
+                    </ResponsiveContainer>
+                )}
+            </div>
+        </section>
+    );
+}
+
+// Waste Reporting Trends
+function WasteTrendsChart({ data }) {
+    const chartData = data.map((item) => {
+        const date = new Date(`${item.month_start}T00:00:00`);
+
+        return {
+            month: Number.isNaN(date.getTime())
+                ? item.month_start
+                : date.toLocaleDateString("en-MY", {
+                    month: "short",
+                    year: "numeric",
+                }),
+            report_count: Number(item.report_count || 0),
+            total_weight: Number(item.total_weight || 0),
+        };
+    });
+
+    return (
+        <section className="card shadow-sm border-0 mb-4">
+            <div className="card-body">
+                <h2 className="h5 mb-1">Waste Reporting Trends</h2>
+
+                <p className="text-muted small">
+                    Monthly changes in the number of waste reports.
+                </p>
+
+                {chartData.length === 0 ? (
+                    <p className="text-muted mb-0">
+                        No reporting trend data available yet.
+                    </p>
+                ) : (
+                    <ResponsiveContainer width="100%" height={320}>
+                        <LineChart
+                            data={chartData}
+                            margin={{
+                                top: 10,
+                                right: 20,
+                                left: 5,
+                                bottom: 10,
+                            }}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" />
+
+                            <XAxis dataKey="month" />
+
+                            <YAxis allowDecimals={false} />
+
+                            <Tooltip
+                                formatter={(value) => [
+                                    formatNumber(value),
+                                    "Reports",
+                                ]}
+                            />
+
+                            <Legend />
+
+                            <Line
+                                type="monotone"
+                                dataKey="report_count"
+                                name="Reports"
+                                stroke="#287B68"
+                                strokeWidth={3}
+                                dot={{ r: 4 }}
+                                activeDot={{ r: 7 }}
+                            />
+                        </LineChart>
+                    </ResponsiveContainer>
                 )}
             </div>
         </section>
@@ -100,9 +266,9 @@ function Dashboard() {
     const [backendStatus, setBackendStatus] = useState("Checking...");
 
     const [analytics, setAnalytics] = useState({
-        hotspots: null,
-        composition: null,
-        trends: null,
+        hotspots: [],
+        composition: [],
+        trends: [],
     });
 
     const [loading, setLoading] = useState(true);
@@ -114,35 +280,34 @@ function Dashboard() {
     });
 
     useEffect(() => {
+        let isMounted = true;
+
         async function loadDashboard() {
-            // Check backend connection
             try {
                 await checkBackendHealth();
-                setBackendStatus("Connected");
+
+                if (isMounted) {
+                    setBackendStatus("Connected");
+                }
             } catch (error) {
-                setBackendStatus("Connection failed");
+                if (isMounted) {
+                    setBackendStatus("Connection failed");
+                }
+
                 console.error("Backend error:", error.message);
             }
 
-            // Fetch all three analytics
             const requests = [
-                {
-                    key: "hotspots",
-                    request: getWasteHotspots,
-                },
-                {
-                    key: "composition",
-                    request: getWasteComposition,
-                },
-                {
-                    key: "trends",
-                    request: getWasteTrends,
-                },
+                { key: "hotspots", request: getWasteHotspots },
+                { key: "composition", request: getWasteComposition },
+                { key: "trends", request: getWasteTrends },
             ];
 
             const results = await Promise.allSettled(
                 requests.map((item) => item.request())
             );
+
+            if (!isMounted) return;
 
             const newAnalytics = {};
             const newErrors = {};
@@ -151,11 +316,13 @@ function Dashboard() {
                 const key = requests[index].key;
 
                 if (result.status === "fulfilled") {
-                    newAnalytics[key] = result.value;
+                    newAnalytics[key] = getRows(result.value);
                     newErrors[key] = "";
                 } else {
-                    newAnalytics[key] = null;
-                    newErrors[key] = result.reason.message;
+                    newAnalytics[key] = [];
+                    newErrors[key] =
+                        result.reason?.message ||
+                        "Unable to load analytics.";
                 }
             });
 
@@ -165,6 +332,10 @@ function Dashboard() {
         }
 
         loadDashboard();
+
+        return () => {
+            isMounted = false;
+        };
     }, []);
 
     return (
@@ -197,29 +368,41 @@ function Dashboard() {
                 </p>
             </section>
 
-            <AnalyticsSection
-                title="Waste Hotspot Analysis"
-                description="Explore waste reporting patterns across different areas."
-                data={analytics.hotspots}
-                loading={loading}
-                error={errors.hotspots}
-            />
+            {loading && (
+                <p className="text-muted">
+                    Loading KITARO analytics...
+                </p>
+            )}
 
-            <AnalyticsSection
-                title="Waste Composition Analysis"
-                description="Review the breakdown of reported waste categories."
-                data={analytics.composition}
-                loading={loading}
-                error={errors.composition}
-            />
+            {errors.hotspots && (
+                <div className="alert alert-danger">
+                    Waste hotspot: {errors.hotspots}
+                </div>
+            )}
 
-            <AnalyticsSection
-                title="Waste Reporting Trends"
-                description="Review reporting activity over time."
-                data={analytics.trends}
-                loading={loading}
-                error={errors.trends}
-            />
+            {errors.composition && (
+                <div className="alert alert-danger">
+                    Waste composition: {errors.composition}
+                </div>
+            )}
+
+            {errors.trends && (
+                <div className="alert alert-danger">
+                    Reporting trends: {errors.trends}
+                </div>
+            )}
+
+            {!loading && (
+                <>
+                    <WasteHotspotChart data={analytics.hotspots} />
+
+                    <WasteCompositionChart
+                        data={analytics.composition}
+                    />
+
+                    <WasteTrendsChart data={analytics.trends} />
+                </>
+            )}
         </main>
     );
 }
