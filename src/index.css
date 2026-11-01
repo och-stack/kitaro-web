@@ -634,19 +634,3 @@ body {
   color: var(--kitaro-muted);
   line-height: 1.8;
 }
-
-/* Profile and Logout icons */
-.kitaro-profile-link,
-.kitaro-profile-link:visited,
-.kitaro-profile-link.active,
-.kitaro-logout-link {
-  background: none;
-  border: none;
-  color: var(--kitaro-teal);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  padding: 8px;
-  text-decoration: none;
-  transition: color 0.2s ease;
-}

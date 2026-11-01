@@ -27,19 +27,6 @@ function Navbar() {
         return () => subscription.unsubscribe();
     }, []);
 
-    async function handleLogout(event) {
-        event.preventDefault();
-
-        const { error } = await supabase.auth.signOut();
-
-        if (error) {
-            console.error("Logout error:", error.message);
-            return;
-        }
-
-        navigate("/login");
-    }
-
     return (
         <nav className="navbar kitaro-navbar">
             <div className="container">
@@ -62,17 +49,26 @@ function Navbar() {
                             Collection Requests
                         </NavLink>
 
-                        <NavLink
-                            to="/profile"
-                            className="kitaro-nav-link"
-                        >
+                        <NavLink to="/profile" className="kitaro-nav-link">
                             <UserRound size={18} />
                             Profile
                         </NavLink>
 
                         <NavLink
-                            to="/logout"
+                            to="/login"
                             className="kitaro-nav-link"
+                            onClick={async (event) => {
+                                event.preventDefault();
+
+                                const { error } = await supabase.auth.signOut();
+
+                                if (error) {
+                                    console.error("Logout error:", error.message);
+                                    return;
+                                }
+
+                                navigate("/login");
+                            }}
                         >
                             <LogOut size={18} />
                             Log Out
