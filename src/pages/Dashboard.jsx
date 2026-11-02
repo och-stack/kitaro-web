@@ -18,13 +18,11 @@ import {
 } from "recharts";
 
 import {
-    checkBackendHealth,
     getWasteHotspots,
     getWasteComposition,
     getWasteTrends,
 } from "../services/api";
 
-// Chart colours
 const CHART_COLORS = [
     "#287B68",
     "#BC7653",
@@ -50,7 +48,7 @@ function formatNumber(value) {
     return Number(value || 0).toLocaleString();
 }
 
-// 1. Waste Composition - Doughnut Chart
+// 1. Waste Composition Analysis - Doughnut Chart
 function WasteCompositionChart({ data }) {
     const chartData = data.map((item) => ({
         name: item.waste_type || "Unknown",
@@ -58,57 +56,58 @@ function WasteCompositionChart({ data }) {
     }));
 
     return (
-        <section className="card shadow-sm border-0 mb-4">
-            <div className="card-body">
-                <h2 className="h5 mb-1">
-                    Waste Composition Analysis
-                </h2>
+        <section className="dashboard-panel dashboard-chart-panel">
+            <div className="dashboard-panel-heading">
+                <h2>Waste Composition Analysis</h2>
 
-                <p className="text-muted small">
+                <p>
                     Distribution of reports by waste category.
                 </p>
-
-                {chartData.length === 0 ? (
-                    <p className="text-muted mb-0">
-                        No composition data available yet.
-                    </p>
-                ) : (
-                    <ResponsiveContainer width="100%" height={320}>
-                        <PieChart>
-                            <Pie
-                                data={chartData}
-                                dataKey="value"
-                                nameKey="name"
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={65}
-                                outerRadius={105}
-                                paddingAngle={3}
-                            >
-                                {chartData.map((item, index) => (
-                                    <Cell
-                                        key={`${item.name}-${index}`}
-                                        fill={
-                                            CHART_COLORS[
-                                            index % CHART_COLORS.length
-                                            ]
-                                        }
-                                    />
-                                ))}
-                            </Pie>
-
-                            <Tooltip
-                                formatter={(value) => [
-                                    formatNumber(value),
-                                    "Reports",
-                                ]}
-                            />
-
-                            <Legend />
-                        </PieChart>
-                    </ResponsiveContainer>
-                )}
             </div>
+
+            {chartData.length === 0 ? (
+                <p className="dashboard-empty">
+                    No composition data available yet.
+                </p>
+            ) : (
+                <ResponsiveContainer width="100%" height={340}>
+                    <PieChart>
+                        <Pie
+                            data={chartData}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="45%"
+                            innerRadius={65}
+                            outerRadius={105}
+                            paddingAngle={3}
+                        >
+                            {chartData.map((item, index) => (
+                                <Cell
+                                    key={`${item.name}-${index}`}
+                                    fill={
+                                        CHART_COLORS[
+                                        index % CHART_COLORS.length
+                                        ]
+                                    }
+                                />
+                            ))}
+                        </Pie>
+
+                        <Tooltip
+                            formatter={(value) => [
+                                formatNumber(value),
+                                "Reports",
+                            ]}
+                        />
+
+                        <Legend
+                            verticalAlign="bottom"
+                            height={45}
+                        />
+                    </PieChart>
+                </ResponsiveContainer>
+            )}
         </section>
     );
 }
@@ -125,64 +124,69 @@ function WasteTrendsChart({ data }) {
                     month: "short",
                     year: "numeric",
                 }),
+
             report_count: Number(item.report_count || 0),
         };
     });
 
     return (
-        <section className="card shadow-sm border-0 mb-4">
-            <div className="card-body">
-                <h2 className="h5 mb-1">
-                    Waste Reporting Trends
-                </h2>
+        <section className="dashboard-panel dashboard-chart-panel">
+            <div className="dashboard-panel-heading">
+                <h2>Waste Reporting Trends</h2>
 
-                <p className="text-muted small">
+                <p>
                     Monthly changes in the number of waste reports.
                 </p>
-
-                {chartData.length === 0 ? (
-                    <p className="text-muted mb-0">
-                        No reporting trend data available yet.
-                    </p>
-                ) : (
-                    <ResponsiveContainer width="100%" height={320}>
-                        <LineChart
-                            data={chartData}
-                            margin={{
-                                top: 10,
-                                right: 20,
-                                left: 5,
-                                bottom: 10,
-                            }}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" />
-
-                            <XAxis dataKey="month" />
-
-                            <YAxis allowDecimals={false} />
-
-                            <Tooltip
-                                formatter={(value) => [
-                                    formatNumber(value),
-                                    "Reports",
-                                ]}
-                            />
-
-                            <Legend />
-
-                            <Line
-                                type="monotone"
-                                dataKey="report_count"
-                                name="Reports"
-                                stroke="#287B68"
-                                strokeWidth={3}
-                                dot={{ r: 4 }}
-                                activeDot={{ r: 7 }}
-                            />
-                        </LineChart>
-                    </ResponsiveContainer>
-                )}
             </div>
+
+            {chartData.length === 0 ? (
+                <p className="dashboard-empty">
+                    No reporting trend data available yet.
+                </p>
+            ) : (
+                <ResponsiveContainer width="100%" height={340}>
+                    <LineChart
+                        data={chartData}
+                        margin={{
+                            top: 15,
+                            right: 15,
+                            left: 0,
+                            bottom: 10,
+                        }}
+                    >
+                        <CartesianGrid strokeDasharray="3 3" />
+
+                        <XAxis
+                            dataKey="month"
+                            tick={{ fontSize: 12 }}
+                        />
+
+                        <YAxis
+                            allowDecimals={false}
+                            tick={{ fontSize: 12 }}
+                        />
+
+                        <Tooltip
+                            formatter={(value) => [
+                                formatNumber(value),
+                                "Reports",
+                            ]}
+                        />
+
+                        <Legend />
+
+                        <Line
+                            type="monotone"
+                            dataKey="report_count"
+                            name="Reports"
+                            stroke="#287B68"
+                            strokeWidth={3}
+                            dot={{ r: 4 }}
+                            activeDot={{ r: 7 }}
+                        />
+                    </LineChart>
+                </ResponsiveContainer>
+            )}
         </section>
     );
 }
@@ -195,73 +199,70 @@ function WasteHotspotChart({ data }) {
     }));
 
     return (
-        <section className="card shadow-sm border-0 mb-4">
-            <div className="card-body">
-                <h2 className="h5 mb-1">
-                    Waste Hotspot Analysis
-                </h2>
+        <section className="dashboard-panel dashboard-hotspot-panel">
+            <div className="dashboard-panel-heading">
+                <h2>Waste Hotspot Analysis</h2>
 
-                <p className="text-muted small">
+                <p>
                     Compare total reported waste weight across areas.
                 </p>
-
-                {chartData.length === 0 ? (
-                    <p className="text-muted mb-0">
-                        No hotspot data available yet.
-                    </p>
-                ) : (
-                    <ResponsiveContainer
-                        width="100%"
-                        height={Math.max(250, chartData.length * 65)}
-                    >
-                        <BarChart
-                            data={chartData}
-                            layout="vertical"
-                            margin={{
-                                top: 10,
-                                right: 30,
-                                left: 20,
-                                bottom: 10,
-                            }}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" />
-
-                            <XAxis
-                                type="number"
-                                allowDecimals={false}
-                            />
-
-                            <YAxis
-                                type="category"
-                                dataKey="area"
-                                width={100}
-                            />
-
-                            <Tooltip
-                                formatter={(value) => [
-                                    `${formatNumber(value)} kg`,
-                                    "Total Waste",
-                                ]}
-                            />
-
-                            <Bar
-                                dataKey="total_weight"
-                                name="Total Waste"
-                                fill="#287B68"
-                                radius={[0, 6, 6, 0]}
-                            />
-                        </BarChart>
-                    </ResponsiveContainer>
-                )}
             </div>
+
+            {chartData.length === 0 ? (
+                <p className="dashboard-empty">
+                    No hotspot data available yet.
+                </p>
+            ) : (
+                <ResponsiveContainer
+                    width="100%"
+                    height={Math.max(280, chartData.length * 65)}
+                >
+                    <BarChart
+                        data={chartData}
+                        layout="vertical"
+                        margin={{
+                            top: 10,
+                            right: 30,
+                            left: 20,
+                            bottom: 10,
+                        }}
+                    >
+                        <CartesianGrid strokeDasharray="3 3" />
+
+                        <XAxis
+                            type="number"
+                            allowDecimals={false}
+                        />
+
+                        <YAxis
+                            type="category"
+                            dataKey="area"
+                            width={120}
+                            tick={{ fontSize: 12 }}
+                        />
+
+                        <Tooltip
+                            formatter={(value) => [
+                                `${formatNumber(value)} kg`,
+                                "Total Waste",
+                            ]}
+                        />
+
+                        <Bar
+                            dataKey="total_weight"
+                            name="Total Waste"
+                            fill="#287B68"
+                            radius={[0, 6, 6, 0]}
+                        />
+                    </BarChart>
+                </ResponsiveContainer>
+            )}
         </section>
     );
 }
 
 // Main Dashboard
 function Dashboard() {
-    const [backendStatus, setBackendStatus] = useState("Checking...");
-
     const [analytics, setAnalytics] = useState({
         hotspots: [],
         composition: [],
@@ -280,24 +281,19 @@ function Dashboard() {
         let isMounted = true;
 
         async function loadDashboard() {
-            try {
-                await checkBackendHealth();
-
-                if (isMounted) {
-                    setBackendStatus("Connected");
-                }
-            } catch (error) {
-                if (isMounted) {
-                    setBackendStatus("Connection failed");
-                }
-
-                console.error("Backend error:", error.message);
-            }
-
             const requests = [
-                { key: "hotspots", request: getWasteHotspots },
-                { key: "composition", request: getWasteComposition },
-                { key: "trends", request: getWasteTrends },
+                {
+                    key: "hotspots",
+                    request: getWasteHotspots,
+                },
+                {
+                    key: "composition",
+                    request: getWasteComposition,
+                },
+                {
+                    key: "trends",
+                    request: getWasteTrends,
+                },
             ];
 
             const results = await Promise.allSettled(
@@ -317,6 +313,7 @@ function Dashboard() {
                     newErrors[key] = "";
                 } else {
                     newAnalytics[key] = [];
+
                     newErrors[key] =
                         result.reason?.message ||
                         "Unable to load analytics.";
@@ -336,74 +333,75 @@ function Dashboard() {
     }, []);
 
     return (
-        <main className="container py-4">
-            <section className="mb-4">
-                <p className="text-uppercase text-success small fw-semibold mb-1">
-                    KITARO ANALYTICS
-                </p>
+        <main className="dashboard-page">
 
-                <h1 className="h2 mb-2">
-                    Waste Management Overview
-                </h1>
+            {/* Dashboard Heading */}
+            <section className="dashboard-heading">
+                <div>
+                    <p className="dashboard-eyebrow">
+                        KITARO ANALYTICS
+                    </p>
 
-                <p className="text-muted">
-                    Monitor waste reports and understand waste management
-                    patterns.
-                </p>
+                    <h1>
+                        Waste Management Overview
+                    </h1>
 
-                <p className="small mb-0">
-                    Backend status:{" "}
-                    <span
-                        className={
-                            backendStatus === "Connected"
-                                ? "text-success fw-semibold"
-                                : "text-danger fw-semibold"
-                        }
-                    >
-                        {backendStatus}
-                    </span>
-                </p>
+                    <p className="dashboard-description">
+                        Monitor waste reports and understand waste
+                        management patterns.
+                    </p>
+                </div>
             </section>
 
+            {/* Loading Message */}
             {loading && (
-                <p className="text-muted">
+                <p className="dashboard-message">
                     Loading KITARO analytics...
                 </p>
             )}
 
-            {errors.hotspots && (
-                <div className="alert alert-danger">
-                    Waste hotspot: {errors.hotspots}
-                </div>
-            )}
-
+            {/* Error Messages */}
             {errors.composition && (
-                <div className="alert alert-danger">
+                <div className="dashboard-error">
                     Waste composition: {errors.composition}
                 </div>
             )}
 
             {errors.trends && (
-                <div className="alert alert-danger">
+                <div className="dashboard-error">
                     Reporting trends: {errors.trends}
                 </div>
             )}
 
+            {errors.hotspots && (
+                <div className="dashboard-error">
+                    Waste hotspot: {errors.hotspots}
+                </div>
+            )}
+
+            {/* Analytics Charts */}
             {!loading && (
                 <>
-                    <WasteCompositionChart
-                        data={analytics.composition}
-                    />
+                    {/* First Row: Two Charts */}
+                    <div className="dashboard-chart-grid">
 
-                    <WasteTrendsChart
-                        data={analytics.trends}
-                    />
+                        <WasteCompositionChart
+                            data={analytics.composition}
+                        />
 
+                        <WasteTrendsChart
+                            data={analytics.trends}
+                        />
+
+                    </div>
+
+                    {/* Second Row: Full-width Chart */}
                     <WasteHotspotChart
                         data={analytics.hotspots}
                     />
                 </>
             )}
+
         </main>
     );
 }
