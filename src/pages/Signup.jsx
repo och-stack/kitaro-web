@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import supabase from "../supabaseClient";
@@ -13,16 +14,31 @@ function Signup() {
 
         setError("");
         setMessage("");
-        setLoading(true);
 
         const formData = new FormData(event.currentTarget);
 
-        const display_name = formData.get("displayName");
-        const email = formData.get("email");
+        const display_name = formData.get("displayName").trim();
+        const email = formData.get("email").trim().toLowerCase();
         const password = formData.get("password");
+        const confirmPassword = formData.get("confirmPassword");
+        const user_type = formData.get("userType");
+
+        // Check whether both passwords match.
+        if (password !== confirmPassword) {
+            setError("Passwords do not match.");
+            return;
+        }
+
+        // Only allow resident or small_business.
+        if (!["resident", "small_business"].includes(user_type)) {
+            setError("Please select a valid account type.");
+            return;
+        }
+
+        setLoading(true);
 
         try {
-            const apiUrl = import.meta.env.VITE_API_URL.replace(/\/$/, "");
+            const apiUrl = import.meta.env.VITE_API_URL.replace(/\/+$/, "");
 
             const response = await fetch(`${apiUrl}/api/auth/signup`, {
                 method: "POST",
@@ -33,6 +49,7 @@ function Signup() {
                     display_name,
                     email,
                     password,
+                    user_type,
                 }),
             });
 
@@ -83,6 +100,16 @@ function Signup() {
                     Track waste, monitor records, and discover opportunities to recycle responsibly.
                 </p>
 
+                <button
+                    type="button"
+                    className="btn btn-kitaro w-100"
+                    onClick={handleGoogleSignup}
+                >
+                    Continue with Google
+                </button>
+
+                <div className="my-3 text-center">OR</div>
+
                 <form onSubmit={handleSubmit}>
                     <div className="mb-3">
                         <input
@@ -111,6 +138,23 @@ function Signup() {
                     </div>
 
                     <div className="mb-3">
+                        <select
+                            id="userType"
+                            name="userType"
+                            className="form-select"
+                            aria-label="Account type"
+                            defaultValue=""
+                            required
+                        >
+                            <option value="" disabled>
+                                Select account type
+                            </option>
+                            <option value="resident">Resident</option>
+                            <option value="small_business">Small Business</option>
+                        </select>
+                    </div>
+
+                    <div className="mb-3">
                         <input
                             id="password"
                             name="password"
@@ -119,6 +163,20 @@ function Signup() {
                             placeholder="Create a password (8 characters minimum)"
                             autoComplete="new-password"
                             aria-label="Create a password"
+                            minLength={8}
+                            required
+                        />
+                    </div>
+
+                    <div className="mb-3">
+                        <input
+                            id="confirmPassword"
+                            name="confirmPassword"
+                            type="password"
+                            className="form-control"
+                            placeholder="Confirm your password"
+                            autoComplete="new-password"
+                            aria-label="Confirm your password"
                             minLength={8}
                             required
                         />
@@ -144,16 +202,6 @@ function Signup() {
                         {loading ? "Creating account..." : "Create Account"}
                     </button>
                 </form>
-
-                <div className="my-3 text-center">OR</div>
-
-                <button
-                    type="button"
-                    className="btn btn-outline-secondary w-100"
-                    onClick={handleGoogleSignup}
-                >
-                    Continue with Google
-                </button>
 
                 <p className="auth-footer">
                     Already have an account? <Link to="/login">Log in</Link>

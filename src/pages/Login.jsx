@@ -79,6 +79,16 @@ function Login() {
                     Manage your waste records and make every resource count.
                 </p>
 
+                <button
+                    type="button"
+                    className="btn btn-kitaro w-100"
+                    onClick={handleGoogleLogin}
+                >
+                    Continue with Google
+                </button>
+
+                <div className="my-3 text-center">OR</div>
+
                 <form onSubmit={handleSubmit}>
                     <div className="mb-3">
                         <input
@@ -120,16 +130,6 @@ function Login() {
                         {loading ? "Logging in..." : "Log In"}
                     </button>
                 </form>
-
-                <div className="my-3 text-center">OR</div>
-
-                <button
-                    type="button"
-                    className="btn btn-outline-secondary w-100"
-                    onClick={handleGoogleLogin}
-                >
-                    Continue with Google
-                </button>
 
                 <p className="auth-footer">
                     Don't have an account? <Link to="/signup">Sign up</Link>
