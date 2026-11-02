@@ -103,7 +103,7 @@ function Signup() {
                             name="email"
                             type="email"
                             className="form-control"
-                            placeholder="Email address"
+                            placeholder="Enter your email address (e.g. name@gmail.com)"
                             autoComplete="email"
                             aria-label="Email address"
                             required
