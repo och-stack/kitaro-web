@@ -17,6 +17,8 @@ import {
     Bar,
 } from "recharts";
 
+import supabase from "../supabaseClient";
+
 import {
     getWasteHotspots,
     getWasteComposition,
@@ -24,384 +26,476 @@ import {
 } from "../services/api";
 
 const CHART_COLORS = [
-    "#287B68",
+    "#123C3A",
+    "#47736D",
     "#BC7653",
-    "#E5B85C",
-    "#719B91",
-    "#8B9DAA",
-    "#A8B98A",
+    "#8FA9A0",
+    "#D8B69F",
+    "#A8BDB5",
 ];
 
-// Extract analytics data from API response
 function getRows(result) {
-    const data =
+    const rows =
         result?.analytics ??
         result?.data?.analytics ??
         result?.data ??
         result;
 
-    return Array.isArray(data) ? data : [];
+    return Array.isArray(rows) ? rows : [];
 }
 
-// Format numbers
-function formatNumber(value) {
-    return Number(value || 0).toLocaleString();
-}
-
-// 1. Waste Composition Analysis - Doughnut Chart
+// Waste Composition Chart
 function WasteCompositionChart({ data }) {
-    const chartData = data.map((item) => ({
-        name: item.waste_type || "Unknown",
-        value: Number(item.report_count || 0),
-    }));
+    if (!data.length) {
+        return (
+            <p className="dashboard-empty">
+                No waste composition data available.
+            </p>
+        );
+    }
 
     return (
-        <section className="dashboard-panel dashboard-chart-panel">
-            <div className="dashboard-panel-heading">
-                <h2>Waste Composition Analysis</h2>
-
-                <p>
-                    Distribution of reports by waste category.
-                </p>
-            </div>
-
-            {chartData.length === 0 ? (
-                <p className="dashboard-empty">
-                    No composition data available yet.
-                </p>
-            ) : (
-                <ResponsiveContainer width="100%" height={340}>
-                    <PieChart>
-                        <Pie
-                            data={chartData}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="45%"
-                            innerRadius={65}
-                            outerRadius={105}
-                            paddingAngle={3}
-                        >
-                            {chartData.map((item, index) => (
-                                <Cell
-                                    key={`${item.name}-${index}`}
-                                    fill={
-                                        CHART_COLORS[
-                                        index % CHART_COLORS.length
-                                        ]
-                                    }
-                                />
-                            ))}
-                        </Pie>
-
-                        <Tooltip
-                            formatter={(value) => [
-                                formatNumber(value),
-                                "Reports",
-                            ]}
-                        />
-
-                        <Legend
-                            verticalAlign="bottom"
-                            height={45}
-                        />
-                    </PieChart>
-                </ResponsiveContainer>
-            )}
-        </section>
-    );
-}
-
-// 2. Waste Reporting Trends - Line Chart
-function WasteTrendsChart({ data }) {
-    const chartData = data.map((item) => {
-        const date = new Date(`${item.month_start}T00:00:00`);
-
-        return {
-            month: Number.isNaN(date.getTime())
-                ? item.month_start
-                : date.toLocaleDateString("en-MY", {
-                    month: "short",
-                    year: "numeric",
-                }),
-
-            report_count: Number(item.report_count || 0),
-        };
-    });
-
-    return (
-        <section className="dashboard-panel dashboard-chart-panel">
-            <div className="dashboard-panel-heading">
-                <h2>Waste Reporting Trends</h2>
-
-                <p>
-                    Monthly changes in the number of waste reports.
-                </p>
-            </div>
-
-            {chartData.length === 0 ? (
-                <p className="dashboard-empty">
-                    No reporting trend data available yet.
-                </p>
-            ) : (
-                <ResponsiveContainer width="100%" height={340}>
-                    <LineChart
-                        data={chartData}
-                        margin={{
-                            top: 15,
-                            right: 15,
-                            left: 0,
-                            bottom: 10,
-                        }}
-                    >
-                        <CartesianGrid strokeDasharray="3 3" />
-
-                        <XAxis
-                            dataKey="month"
-                            tick={{ fontSize: 12 }}
-                        />
-
-                        <YAxis
-                            allowDecimals={false}
-                            tick={{ fontSize: 12 }}
-                        />
-
-                        <Tooltip
-                            formatter={(value) => [
-                                formatNumber(value),
-                                "Reports",
-                            ]}
-                        />
-
-                        <Legend />
-
-                        <Line
-                            type="monotone"
-                            dataKey="report_count"
-                            name="Reports"
-                            stroke="#287B68"
-                            strokeWidth={3}
-                            dot={{ r: 4 }}
-                            activeDot={{ r: 7 }}
-                        />
-                    </LineChart>
-                </ResponsiveContainer>
-            )}
-        </section>
-    );
-}
-
-// 3. Waste Hotspot Analysis - Horizontal Bar Chart
-function WasteHotspotChart({ data }) {
-    const chartData = data.map((item) => ({
-        area: item.area || "Unknown",
-        total_weight: Number(item.total_weight || 0),
-    }));
-
-    return (
-        <section className="dashboard-panel dashboard-hotspot-panel">
-            <div className="dashboard-panel-heading">
-                <h2>Waste Hotspot Analysis</h2>
-
-                <p>
-                    Compare total reported waste weight across areas.
-                </p>
-            </div>
-
-            {chartData.length === 0 ? (
-                <p className="dashboard-empty">
-                    No hotspot data available yet.
-                </p>
-            ) : (
-                <ResponsiveContainer
-                    width="100%"
-                    height={Math.max(280, chartData.length * 65)}
+        <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+                <Pie
+                    data={data}
+                    dataKey="report_count"
+                    nameKey="waste_type"
+                    cx="50%"
+                    cy="45%"
+                    outerRadius={90}
+                    innerRadius={55}
+                    paddingAngle={3}
                 >
-                    <BarChart
-                        data={chartData}
-                        layout="vertical"
-                        margin={{
-                            top: 10,
-                            right: 30,
-                            left: 20,
-                            bottom: 10,
-                        }}
-                    >
-                        <CartesianGrid strokeDasharray="3 3" />
-
-                        <XAxis
-                            type="number"
-                            allowDecimals={false}
+                    {data.map((entry, index) => (
+                        <Cell
+                            key={entry.waste_type || index}
+                            fill={CHART_COLORS[index % CHART_COLORS.length]}
                         />
+                    ))}
+                </Pie>
 
-                        <YAxis
-                            type="category"
-                            dataKey="area"
-                            width={120}
-                            tick={{ fontSize: 12 }}
-                        />
-
-                        <Tooltip
-                            formatter={(value) => [
-                                `${formatNumber(value)} kg`,
-                                "Total Waste",
-                            ]}
-                        />
-
-                        <Bar
-                            dataKey="total_weight"
-                            name="Total Waste"
-                            fill="#287B68"
-                            radius={[0, 6, 6, 0]}
-                        />
-                    </BarChart>
-                </ResponsiveContainer>
-            )}
-        </section>
+                <Tooltip />
+                <Legend />
+            </PieChart>
+        </ResponsiveContainer>
     );
 }
 
-// Main Dashboard
+// Waste Reporting Trends Chart
+function WasteTrendsChart({ data }) {
+    if (!data.length) {
+        return (
+            <p className="dashboard-empty">
+                No reporting trend data available.
+            </p>
+        );
+    }
+
+    const chartData = data.map((item) => ({
+        ...item,
+        month: item.month_start
+            ? new Date(item.month_start).toLocaleDateString("en-MY", {
+                month: "short",
+                year: "numeric",
+            })
+            : item.month,
+    }));
+
+    return (
+        <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+
+                <Line
+                    type="monotone"
+                    dataKey="report_count"
+                    name="Reports"
+                    stroke="#BC7653"
+                    strokeWidth={3}
+                    dot={{ r: 4 }}
+                />
+            </LineChart>
+        </ResponsiveContainer>
+    );
+}
+
+// Waste Hotspot Chart
+function WasteHotspotChart({ data }) {
+    if (!data.length) {
+        return (
+            <p className="dashboard-empty">
+                No hotspot data available.
+            </p>
+        );
+    }
+
+    const chartHeight = Math.max(220, data.length * 65);
+
+    return (
+        <ResponsiveContainer width="100%" height={chartHeight}>
+            <BarChart
+                data={data}
+                layout="vertical"
+                barCategoryGap="35%"
+                margin={{ top: 10, right: 30, left: 20, bottom: 10 }}
+            >
+                <CartesianGrid
+                    strokeDasharray="3 3"
+                    horizontal={false}
+                />
+
+                <XAxis
+                    type="number"
+                    tickLine={false}
+                    axisLine={false}
+                />
+
+                <YAxis
+                    type="category"
+                    dataKey="area"
+                    width={120}
+                    tickLine={false}
+                    axisLine={false}
+                />
+
+                <Tooltip />
+
+                <Bar
+                    dataKey="total_weight"
+                    name="Total Waste Weight"
+                    fill="#47736D"
+                    barSize={22}
+                    radius={[0, 5, 5, 0]}
+                />
+            </BarChart>
+        </ResponsiveContainer>
+    );
+}
+
 function Dashboard() {
-    const [analytics, setAnalytics] = useState({
-        hotspots: [],
-        composition: [],
-        trends: [],
+    const [composition, setComposition] = useState([]);
+    const [trends, setTrends] = useState([]);
+    const [hotspots, setHotspots] = useState([]);
+
+    const [collectionStats, setCollectionStats] = useState({
+        total: 0,
+        submitted: 0,
+        going: 0,
+        resolved: 0,
     });
 
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
-    const [errors, setErrors] = useState({
-        hotspots: "",
-        composition: "",
-        trends: "",
-    });
+    const [matchedArea, setMatchedArea] = useState("");
+    const [isAdmin, setIsAdmin] = useState(false);
 
-    useEffect(() => {
-        let isMounted = true;
+    // Check whether the current user is an admin
+    async function checkAdminAccess() {
+        try {
+            const { data, error } = await supabase.rpc("kitaro_is_admin");
 
-        async function loadDashboard() {
-            const requests = [
-                {
-                    key: "hotspots",
-                    request: getWasteHotspots,
-                },
-                {
-                    key: "composition",
-                    request: getWasteComposition,
-                },
-                {
-                    key: "trends",
-                    request: getWasteTrends,
-                },
+            if (error) {
+                throw error;
+            }
+
+            const adminAccess = data === true;
+
+            setIsAdmin(adminAccess);
+
+            return adminAccess;
+        } catch (error) {
+            console.error("Admin access check error:", error);
+            setIsAdmin(false);
+
+            return false;
+        }
+    }
+
+    // Load collection request statistics
+    async function loadCollectionStats() {
+        try {
+            const [
+                totalResult,
+                submittedResult,
+                goingResult,
+                resolvedResult,
+            ] = await Promise.all([
+                supabase
+                    .from("kitaro_waste_records")
+                    .select("*", { count: "exact", head: true }),
+
+                supabase
+                    .from("kitaro_waste_records")
+                    .select("*", { count: "exact", head: true })
+                    .ilike("status", "submitted"),
+
+                supabase
+                    .from("kitaro_waste_records")
+                    .select("*", { count: "exact", head: true })
+                    .ilike("status", "going"),
+
+                supabase
+                    .from("kitaro_waste_records")
+                    .select("*", { count: "exact", head: true })
+                    .ilike("status", "resolved"),
+            ]);
+
+            const results = [
+                totalResult,
+                submittedResult,
+                goingResult,
+                resolvedResult,
             ];
 
-            const results = await Promise.allSettled(
-                requests.map((item) => item.request())
-            );
+            const failedResult = results.find((result) => result.error);
 
-            if (!isMounted) return;
+            if (failedResult) {
+                throw failedResult.error;
+            }
 
-            const newAnalytics = {};
-            const newErrors = {};
-
-            results.forEach((result, index) => {
-                const key = requests[index].key;
-
-                if (result.status === "fulfilled") {
-                    newAnalytics[key] = getRows(result.value);
-                    newErrors[key] = "";
-                } else {
-                    newAnalytics[key] = [];
-
-                    newErrors[key] =
-                        result.reason?.message ||
-                        "Unable to load analytics.";
-                }
+            setCollectionStats({
+                total: totalResult.count ?? 0,
+                submitted: submittedResult.count ?? 0,
+                going: goingResult.count ?? 0,
+                resolved: resolvedResult.count ?? 0,
             });
+        } catch (error) {
+            console.error("Collection statistics error:", error);
+        }
+    }
 
-            setAnalytics(newAnalytics);
-            setErrors(newErrors);
-            setLoading(false);
+    // Load user's matched area using their saved postal code
+    async function loadMatchedArea() {
+        try {
+            const {
+                data: { session },
+            } = await supabase.auth.getSession();
+
+            if (!session) {
+                return;
+            }
+
+            const { data: profile, error: profileError } = await supabase
+                .from("kitaro_users")
+                .select("postal_code, matched_area")
+                .eq("id", session.user.id)
+                .maybeSingle();
+
+            if (profileError) {
+                throw profileError;
+            }
+
+            if (!profile) {
+                console.log("User profile not found.");
+                return;
+            }
+
+            console.log("Saved postal code:", profile.postal_code);
+            console.log("Saved matched area:", profile.matched_area);
+
+            if (profile.matched_area) {
+                setMatchedArea(profile.matched_area);
+            } else {
+                console.log(
+                    "Postal code exists, but no matched area has been saved yet."
+                );
+            }
+        } catch (error) {
+            console.error("Matched area loading error:", error);
+        }
+    }
+
+    // Load dashboard analytics
+    useEffect(() => {
+        async function loadDashboard() {
+            setLoading(true);
+            setError("");
+
+            try {
+                // Check admin access first
+                const adminAccess = await checkAdminAccess();
+
+                // Load common dashboard information
+                const [
+                    compositionResult,
+                    trendsResult,
+                ] = await Promise.all([
+                    getWasteComposition(),
+                    getWasteTrends(),
+                    loadCollectionStats(),
+                    loadMatchedArea(),
+                ]).then((results) => [
+                    results[0],
+                    results[1],
+                ]);
+
+                setComposition(getRows(compositionResult));
+                setTrends(getRows(trendsResult));
+
+                // Load hotspot analytics only for admins
+                if (adminAccess) {
+                    const hotspotResult = await getWasteHotspots();
+                    setHotspots(getRows(hotspotResult));
+                } else {
+                    setHotspots([]);
+                }
+            } catch (error) {
+                console.error("Dashboard loading error:", error);
+                setError("Unable to load dashboard analytics.");
+            } finally {
+                setLoading(false);
+            }
         }
 
         loadDashboard();
-
-        return () => {
-            isMounted = false;
-        };
     }, []);
+
+    // Find recycling centres near the matched area
+    function handleFindRecyclingCentres() {
+        if (!matchedArea) {
+            alert(
+                "No matched area found. Please update your postal code in your profile."
+            );
+            return;
+        }
+
+        const searchQuery = `recycling centres near ${matchedArea}`;
+
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+            searchQuery
+        )}`;
+
+        window.open(mapsUrl, "_blank", "noopener,noreferrer");
+    }
 
     return (
         <main className="dashboard-page">
-
-            {/* Dashboard Heading */}
-            <section className="dashboard-heading">
+            <div className="dashboard-heading">
                 <div>
-                    <p className="dashboard-eyebrow">
-                        KITARO ANALYTICS
-                    </p>
+                    <p className="dashboard-eyebrow">KITARO ANALYTICS</p>
 
-                    <h1>
-                        Waste Management Overview
-                    </h1>
+                    <h1>Dashboard</h1>
 
                     <p className="dashboard-description">
-                        Monitor waste reports and understand waste
-                        management patterns.
+                        Monitor collection requests, waste composition,
+                        reporting trends and waste hotspots.
                     </p>
                 </div>
-            </section>
+            </div>
 
-            {/* Loading Message */}
-            {loading && (
+            {error && (
+                <div className="dashboard-error" role="alert">
+                    {error}
+                </div>
+            )}
+
+            {loading ? (
                 <p className="dashboard-message">
-                    Loading KITARO analytics...
+                    Loading dashboard analytics...
                 </p>
-            )}
-
-            {/* Error Messages */}
-            {errors.composition && (
-                <div className="dashboard-error">
-                    Waste composition: {errors.composition}
-                </div>
-            )}
-
-            {errors.trends && (
-                <div className="dashboard-error">
-                    Reporting trends: {errors.trends}
-                </div>
-            )}
-
-            {errors.hotspots && (
-                <div className="dashboard-error">
-                    Waste hotspot: {errors.hotspots}
-                </div>
-            )}
-
-            {/* Analytics Charts */}
-            {!loading && (
+            ) : (
                 <>
-                    {/* First Row: Two Charts */}
-                    <div className="dashboard-chart-grid">
+                    {/* Collection Requests Overview */}
+                    <section className="dashboard-panel collection-overview-panel">
+                        <div className="dashboard-panel-heading">
+                            <h2>Collection Requests Overview</h2>
+                            <p>
+                                Summary of collection request activity.
+                            </p>
+                        </div>
 
-                        <WasteCompositionChart
-                            data={analytics.composition}
-                        />
+                        <div className="collection-stats-grid">
+                            <div className="collection-stat-card">
+                                <h3>{collectionStats.total}</h3>
+                                <p>Total Requests</p>
+                            </div>
 
-                        <WasteTrendsChart
-                            data={analytics.trends}
-                        />
+                            <div className="collection-stat-card">
+                                <h3>{collectionStats.submitted}</h3>
+                                <p>Submitted</p>
+                            </div>
 
+                            <div className="collection-stat-card">
+                                <h3>{collectionStats.going}</h3>
+                                <p>Going</p>
+                            </div>
+
+                            <div className="collection-stat-card">
+                                <h3>{collectionStats.resolved}</h3>
+                                <p>Resolved</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Main Dashboard Panels */}
+                    <div className="dashboard-top-grid">
+
+                        {/* Waste Composition */}
+                        <section className="dashboard-panel">
+                            <div className="dashboard-panel-heading">
+                                <h2>Waste Composition</h2>
+                                <p>
+                                    Breakdown of reported waste categories.
+                                </p>
+                            </div>
+
+                            <WasteCompositionChart data={composition} />
+                        </section>
+
+                        {/* Waste Reporting Trends */}
+                        <section className="dashboard-panel">
+                            <div className="dashboard-panel-heading">
+                                <h2>Waste Reporting Trends</h2>
+                                <p>
+                                    Monthly waste reporting activity.
+                                </p>
+                            </div>
+
+                            <WasteTrendsChart data={trends} />
+                        </section>
+
+                        {/* Explore and Analyse */}
+                        <section className="dashboard-panel dashboard-ai-panel">
+                            <div className="dashboard-panel-heading">
+                                <h2>Explore & Analyse</h2>
+                                <p>
+                                    Find recycling locations near your matched area.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="btn btn-kitaro w-100"
+                                onClick={handleFindRecyclingCentres}
+                            >
+                                <i className="bi bi-geo-alt me-2"></i>
+                                Find Nearby Recycling Centres
+                            </button>
+                        </section>
                     </div>
 
-                    {/* Second Row: Full-width Chart */}
-                    <WasteHotspotChart
-                        data={analytics.hotspots}
-                    />
+                    {/* Waste Hotspot Analysis - Admin Only */}
+                    {isAdmin && (
+                        <div className="dashboard-bottom-grid">
+                            <section className="dashboard-panel dashboard-hotspot-panel">
+                                <div className="dashboard-panel-heading">
+                                    <h2>Waste Hotspot Analysis</h2>
+                                    <p>
+                                        Areas with the highest reported waste weight.
+                                    </p>
+                                </div>
+
+                                <WasteHotspotChart data={hotspots} />
+                            </section>
+                        </div>
+                    )}
                 </>
             )}
-
         </main>
     );
 }

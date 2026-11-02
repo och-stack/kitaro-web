@@ -767,3 +767,105 @@ body {
   border-radius: 4px;
   font-size: 0.85rem;
 }
+
+
+/* Dashboard: three-column top row */
+.dashboard-top-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  width: 100%;
+  align-items: stretch;
+  margin-bottom: 24px;
+}
+
+.dashboard-panel {
+  min-width: 0;
+  padding: 24px;
+  background: var(--kitaro-white);
+  border: 1px solid var(--kitaro-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(18, 60, 58, 0.04);
+}
+
+.dashboard-panel-heading {
+  margin-bottom: 16px;
+}
+
+.dashboard-panel-heading h2 {
+  margin-bottom: 8px;
+  color: var(--kitaro-teal);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.dashboard-panel-heading p {
+  margin-bottom: 0;
+  color: var(--kitaro-muted);
+  font-size: 0.85rem;
+}
+
+/* Dashboard: hotspot chart spans first two columns */
+.dashboard-bottom-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
+.dashboard-hotspot-panel {
+  grid-column: span 2;
+  min-width: 0;
+}
+
+.dashboard-empty {
+  padding: 32px 16px;
+  color: var(--kitaro-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.dashboard-message {
+  padding: 20px 0;
+  color: var(--kitaro-muted);
+}
+
+.dashboard-error {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  color: #8b4e36;
+  background: #fff4ef;
+  border: 1px solid #e9c7b8;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.collection-overview-panel {
+  margin-bottom: 24px;
+}
+
+.collection-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.collection-stat-card {
+  background: #FAF9F6;
+  border: 1px solid #e5e5df;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.collection-stat-card h3 {
+  color: #123C3A;
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.collection-stat-card p {
+  color: #666;
+  font-size: 14px;
+  margin: 0;
+}
