@@ -1,10 +1,14 @@
 
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import supabase from "../supabaseClient";
 
 function Login() {
     const navigate = useNavigate();
+    const location = useLocation();
+
+    const redirectTo = location.state?.from?.pathname || "/dashboard";
+
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
@@ -20,7 +24,7 @@ function Login() {
         const password = formData.get("password");
 
         try {
-            const apiUrl = import.meta.env.VITE_API_URL.replace(/\/$/, "");
+            const apiUrl = import.meta.env.VITE_API_URL.replace(/\/+$/, "");
 
             const response = await fetch(`${apiUrl}/api/auth/login`, {
                 method: "POST",
@@ -45,7 +49,8 @@ function Login() {
                 throw sessionError;
             }
 
-            navigate("/dashboard");
+            navigate(redirectTo, { replace: true });
+
         } catch (error) {
             setError(error.message);
         } finally {
@@ -71,6 +76,7 @@ function Login() {
     return (
         <main className="auth-page">
             <div className="auth-card">
+
                 <p className="auth-eyebrow">WELCOME BACK</p>
 
                 <h1>Log in to KITARO</h1>
@@ -134,6 +140,7 @@ function Login() {
                 <p className="auth-footer">
                     Don't have an account? <Link to="/signup">Sign up</Link>
                 </p>
+
             </div>
         </main>
     );

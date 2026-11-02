@@ -1,7 +1,9 @@
+
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import Navbar from "./components/Navbar";
 import AuthNavbar from "./components/AuthNavbar";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 import Home from "./pages/Home";
 import Login from "./pages/Login";
@@ -13,24 +15,53 @@ import Dashboard from "./pages/Dashboard";
 function App() {
   const location = useLocation();
 
-  const isAuthPage =
+  const isPublicPage =
+    location.pathname === "/" ||
     location.pathname === "/home" ||
     location.pathname === "/login" ||
     location.pathname === "/signup";
 
   return (
     <>
-      {isAuthPage ? <AuthNavbar /> : <Navbar />}
+      {isPublicPage ? <AuthNavbar /> : <Navbar />}
 
       <Routes>
-        <Route path="/" element={<Navigate to="/home" replace />} />
+        {/* Public Pages */}
+        <Route path="/" element={<Home />} />
         <Route path="/home" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/collection-requests" element={<CollectionRequests />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+
+        {/* Protected Pages */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/collection-requests"
+          element={
+            <ProtectedRoute>
+              <CollectionRequests />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Unknown URL */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   );
