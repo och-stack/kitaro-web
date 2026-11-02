@@ -11,7 +11,7 @@ function AuthNavbar() {
                 </Link>
 
                 <div className="kitaro-nav-links">
-                    <NavLink to="/" className="kitaro-nav-link">
+                    <NavLink to="/home" className="kitaro-nav-link">
                         <House size={18} />
                         Home
                     </NavLink>

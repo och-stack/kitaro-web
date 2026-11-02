@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import AuthNavbar from "./components/AuthNavbar";
 
+import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import CollectionRequests from "./pages/CollectionRequests";
@@ -13,6 +14,7 @@ function App() {
   const location = useLocation();
 
   const isAuthPage =
+    location.pathname === "/home" ||
     location.pathname === "/login" ||
     location.pathname === "/signup";
 
@@ -21,7 +23,8 @@ function App() {
       {isAuthPage ? <AuthNavbar /> : <Navbar />}
 
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route path="/home" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/dashboard" element={<Dashboard />} />
