@@ -252,11 +252,13 @@ function Profile() {
 
     // Convert the database value into a readable label.
     const accountType =
-        formData.userType === "small_business"
-            ? "Small Business"
-            : formData.userType === "resident"
-                ? "Resident"
-                : "Not Set";
+        formData.userType === "admin"
+            ? "Admin"
+            : formData.userType === "small_business"
+                ? "Small Business"
+                : formData.userType === "resident"
+                    ? "Resident"
+                    : "Not Set";
 
     return (
         <main className="profile-page">

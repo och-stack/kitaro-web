@@ -90,7 +90,7 @@ body {
 /* Login and signup card */
 .auth-card {
   width: 100%;
-  max-width: 420px;
+  max-width: 520px;
   padding: 36px;
   background: var(--kitaro-white);
   border: 1px solid var(--kitaro-border);
