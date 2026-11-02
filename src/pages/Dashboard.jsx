@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from "react";
+
 import {
     ResponsiveContainer,
     PieChart,
@@ -33,7 +34,7 @@ const CHART_COLORS = [
     "#A8B98A",
 ];
 
-// Extract analytics data from the API response
+// Extract analytics data from API response
 function getRows(result) {
     const data =
         result?.analytics ??
@@ -49,95 +50,19 @@ function formatNumber(value) {
     return Number(value || 0).toLocaleString();
 }
 
-// Waste Hotspot Analysis
-function WasteHotspotChart({ data }) {
-    const chartData = data.map((item) => ({
-        area: item.area || "Unknown area",
-        report_count: Number(item.report_count || 0),
-        total_weight: Number(item.total_weight || 0),
-    }));
-
-    return (
-        <section className="card shadow-sm border-0 mb-4">
-            <div className="card-body">
-                <h2 className="h5 mb-1">Waste Hotspot Analysis</h2>
-
-                <p className="text-muted small">
-                    Areas ranked by the number of waste reports.
-                </p>
-
-                {chartData.length === 0 ? (
-                    <p className="text-muted mb-0">
-                        No hotspot data available yet.
-                    </p>
-                ) : (
-                    <ResponsiveContainer width="100%" height={320}>
-                        <BarChart
-                            data={chartData}
-                            layout="vertical"
-                            margin={{
-                                top: 10,
-                                right: 25,
-                                left: 20,
-                                bottom: 10,
-                            }}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" />
-
-                            <XAxis
-                                type="number"
-                                allowDecimals={false}
-                            />
-
-                            <YAxis
-                                type="category"
-                                dataKey="area"
-                                width={110}
-                            />
-
-                            <Tooltip
-                                formatter={(value) => [
-                                    formatNumber(value),
-                                    "Reports",
-                                ]}
-                            />
-
-                            <Bar
-                                dataKey="report_count"
-                                name="Reports"
-                                radius={[0, 6, 6, 0]}
-                            >
-                                {chartData.map((item, index) => (
-                                    <Cell
-                                        key={`${item.area}-${index}`}
-                                        fill={
-                                            CHART_COLORS[
-                                            index % CHART_COLORS.length
-                                            ]
-                                        }
-                                    />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                )}
-            </div>
-        </section>
-    );
-}
-
-// Waste Composition Analysis
+// 1. Waste Composition - Doughnut Chart
 function WasteCompositionChart({ data }) {
     const chartData = data.map((item) => ({
         name: item.waste_type || "Unknown",
         value: Number(item.report_count || 0),
-        total_weight: Number(item.total_weight || 0),
     }));
 
     return (
         <section className="card shadow-sm border-0 mb-4">
             <div className="card-body">
-                <h2 className="h5 mb-1">Waste Composition Analysis</h2>
+                <h2 className="h5 mb-1">
+                    Waste Composition Analysis
+                </h2>
 
                 <p className="text-muted small">
                     Distribution of reports by waste category.
@@ -148,7 +73,7 @@ function WasteCompositionChart({ data }) {
                         No composition data available yet.
                     </p>
                 ) : (
-                    <ResponsiveContainer width="100%" height={340}>
+                    <ResponsiveContainer width="100%" height={320}>
                         <PieChart>
                             <Pie
                                 data={chartData}
@@ -156,10 +81,9 @@ function WasteCompositionChart({ data }) {
                                 nameKey="name"
                                 cx="50%"
                                 cy="50%"
+                                innerRadius={65}
                                 outerRadius={105}
-                                label={({ name, percent }) =>
-                                    `${name}: ${(percent * 100).toFixed(1)}%`
-                                }
+                                paddingAngle={3}
                             >
                                 {chartData.map((item, index) => (
                                     <Cell
@@ -189,7 +113,7 @@ function WasteCompositionChart({ data }) {
     );
 }
 
-// Waste Reporting Trends
+// 2. Waste Reporting Trends - Line Chart
 function WasteTrendsChart({ data }) {
     const chartData = data.map((item) => {
         const date = new Date(`${item.month_start}T00:00:00`);
@@ -202,14 +126,15 @@ function WasteTrendsChart({ data }) {
                     year: "numeric",
                 }),
             report_count: Number(item.report_count || 0),
-            total_weight: Number(item.total_weight || 0),
         };
     });
 
     return (
         <section className="card shadow-sm border-0 mb-4">
             <div className="card-body">
-                <h2 className="h5 mb-1">Waste Reporting Trends</h2>
+                <h2 className="h5 mb-1">
+                    Waste Reporting Trends
+                </h2>
 
                 <p className="text-muted small">
                     Monthly changes in the number of waste reports.
@@ -262,6 +187,78 @@ function WasteTrendsChart({ data }) {
     );
 }
 
+// 3. Waste Hotspot Analysis - Horizontal Bar Chart
+function WasteHotspotChart({ data }) {
+    const chartData = data.map((item) => ({
+        area: item.area || "Unknown",
+        total_weight: Number(item.total_weight || 0),
+    }));
+
+    return (
+        <section className="card shadow-sm border-0 mb-4">
+            <div className="card-body">
+                <h2 className="h5 mb-1">
+                    Waste Hotspot Analysis
+                </h2>
+
+                <p className="text-muted small">
+                    Compare total reported waste weight across areas.
+                </p>
+
+                {chartData.length === 0 ? (
+                    <p className="text-muted mb-0">
+                        No hotspot data available yet.
+                    </p>
+                ) : (
+                    <ResponsiveContainer
+                        width="100%"
+                        height={Math.max(250, chartData.length * 65)}
+                    >
+                        <BarChart
+                            data={chartData}
+                            layout="vertical"
+                            margin={{
+                                top: 10,
+                                right: 30,
+                                left: 20,
+                                bottom: 10,
+                            }}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" />
+
+                            <XAxis
+                                type="number"
+                                allowDecimals={false}
+                            />
+
+                            <YAxis
+                                type="category"
+                                dataKey="area"
+                                width={100}
+                            />
+
+                            <Tooltip
+                                formatter={(value) => [
+                                    `${formatNumber(value)} kg`,
+                                    "Total Waste",
+                                ]}
+                            />
+
+                            <Bar
+                                dataKey="total_weight"
+                                name="Total Waste"
+                                fill="#287B68"
+                                radius={[0, 6, 6, 0]}
+                            />
+                        </BarChart>
+                    </ResponsiveContainer>
+                )}
+            </div>
+        </section>
+    );
+}
+
+// Main Dashboard
 function Dashboard() {
     const [backendStatus, setBackendStatus] = useState("Checking...");
 
@@ -394,13 +391,17 @@ function Dashboard() {
 
             {!loading && (
                 <>
-                    <WasteHotspotChart data={analytics.hotspots} />
-
                     <WasteCompositionChart
                         data={analytics.composition}
                     />
 
-                    <WasteTrendsChart data={analytics.trends} />
+                    <WasteTrendsChart
+                        data={analytics.trends}
+                    />
+
+                    <WasteHotspotChart
+                        data={analytics.hotspots}
+                    />
                 </>
             )}
         </main>
