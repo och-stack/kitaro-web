@@ -54,45 +54,13 @@ function Home() {
                     </a>
                 </div>
 
+                {/* KITARO Logo */}
                 <div className="hero-illustration">
-                    <div className="kitaro-recycle-logo">
-                        <svg viewBox="0 0 260 230" xmlns="http://www.w3.org/2000/svg">
-                            <path
-                                d="M74 69 C87 39 120 27 151 39 L177 49 L157 67 L145 61 C126 53 105 62 96 80 L86 101 L61 87 Z"
-                                fill="#FAF9F6"
-                            />
-                            <path
-                                d="M174 78 L199 121 C212 143 202 169 180 181 L160 192 L157 164 L169 157 C180 150 182 137 175 125 L153 87 Z"
-                                fill="#BC7653"
-                            />
-                            <path
-                                d="M143 190 L94 190 C68 190 50 171 53 147 L55 122 L78 138 L77 151 C77 163 86 170 99 170 L143 170 Z"
-                                fill="#82A69A"
-                            />
-                            <path
-                                d="M104 96 L104 151 M104 124 L137 96 M104 124 L139 153"
-                                fill="none"
-                                stroke="#123C3A"
-                                strokeWidth="9"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            />
-                            <path
-                                d="M119 108 Q126 101 133 108"
-                                fill="none"
-                                stroke="#BC7653"
-                                strokeWidth="3.5"
-                                strokeLinecap="round"
-                            />
-                            <path
-                                d="M119 137 Q128 144 137 136"
-                                fill="none"
-                                stroke="#123C3A"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                            />
-                        </svg>
-                    </div>
+                    <img
+                        src="/kitaro-favicon.svg"
+                        alt="KITARO recycling logo"
+                        className="kitaro-recycle-logo"
+                    />
 
                     <p className="character-caption">
                         Make every resource count.
@@ -125,7 +93,9 @@ function Home() {
                                 <p>{item.description}</p>
                             </div>
 
-                            <p className="recycling-tip">{item.tip}</p>
+                            <p className="recycling-tip">
+                                {item.tip}
+                            </p>
                         </article>
                     ))}
                 </div>

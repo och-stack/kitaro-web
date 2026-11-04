@@ -800,6 +800,7 @@ body {
 }
 
 
+
 /* =================================
    7. KITARO HOMEPAGE
 ================================= */
@@ -864,29 +865,26 @@ body {
   background: #A96545;
 }
 
-/* Recycling logo */
+/* KITARO SVG logo */
 
 .hero-illustration {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   text-align: center;
 }
 
 .kitaro-recycle-logo {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  margin: auto;
-}
-
-.kitaro-recycle-logo svg {
   display: block;
-  width: 100%;
-  max-width: 260px;
-  height: auto;
+  width: 260px;
+  max-width: 100%;
+  height: 230px;
+  object-fit: contain;
   transition: transform 0.3s ease;
 }
 
-.kitaro-recycle-logo:hover svg {
+.kitaro-recycle-logo:hover {
   transform: scale(1.04);
 }
 
@@ -925,7 +923,7 @@ body {
   line-height: 1.8;
 }
 
-/* Simple recycling list */
+/* Recycling list */
 
 .recycling-list {
   border-top: 1px solid var(--kitaro-border);
