@@ -37,12 +37,14 @@ const CHART_COLORS = [
 // Temporarily store dashboard information.
 let dashboardCache = null;
 
-// Clear cached information when authentication changes.
-supabase.auth.onAuthStateChange((event) => {
-    if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
-        dashboardCache = null;
-    }
-});
+// Clear cached information when the authentication state changes.
+if (typeof supabase.auth.onAuthStateChange === "function") {
+    supabase.auth.onAuthStateChange((event) => {
+        if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+            dashboardCache = null;
+        }
+    });
+}
 
 // Update the dashboard cache.
 function updateDashboardCache(data) {
