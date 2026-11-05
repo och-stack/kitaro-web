@@ -1,9 +1,11 @@
-
 import supabase from "../supabaseClient";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-// Check whether the backend is running
+// Share an ongoing session request between concurrent API calls.
+let sessionPromise = null;
+
+// Check whether the backend is running.
 export async function checkBackendHealth() {
     if (!API_URL) {
         throw new Error("Missing VITE_API_URL in the frontend .env file.");
@@ -18,9 +20,16 @@ export async function checkBackendHealth() {
     return response.json();
 }
 
-// Get the current user's access token
+// Get the current user's access token.
 async function getAuthHeaders() {
-    const { data, error } = await supabase.auth.getSession();
+    // Reuse an ongoing session request when multiple calls happen together.
+    if (!sessionPromise) {
+        sessionPromise = supabase.auth.getSession().finally(() => {
+            sessionPromise = null;
+        });
+    }
+
+    const { data, error } = await sessionPromise;
 
     if (error || !data.session) {
         throw new Error("Please log in to continue.");
@@ -32,7 +41,7 @@ async function getAuthHeaders() {
     };
 }
 
-// Send an authenticated API request
+// Send an authenticated API request.
 async function authenticatedRequest(endpoint, options = {}) {
     if (!API_URL) {
         throw new Error("Missing VITE_API_URL in the frontend .env file.");
@@ -48,8 +57,10 @@ async function authenticatedRequest(endpoint, options = {}) {
         },
     });
 
+    // Read the backend response.
     const result = await response.json();
 
+    // Handle unsuccessful responses.
     if (!response.ok) {
         const error = new Error(
             result.message || "The request could not be completed."
@@ -63,7 +74,7 @@ async function authenticatedRequest(endpoint, options = {}) {
     return result;
 }
 
-// Request analytics from the backend
+// Request analytics from the backend.
 async function fetchAnalytics(endpoint) {
     const result = await authenticatedRequest(
         `/api/analytics/${endpoint}`
@@ -72,7 +83,7 @@ async function fetchAnalytics(endpoint) {
     return result.analytics;
 }
 
-// KITARO analytics
+// KITARO analytics.
 export async function getWasteHotspots() {
     return fetchAnalytics("hotspots");
 }
@@ -85,7 +96,7 @@ export async function getWasteTrends() {
     return fetchAnalytics("trends");
 }
 
-// USER: Submit a waste report
+// USER: Submit a waste report.
 export async function createWasteRecord(record) {
     return authenticatedRequest("/api/waste-records", {
         method: "POST",
@@ -93,7 +104,7 @@ export async function createWasteRecord(record) {
     });
 }
 
-// USER: View own waste reports
+// USER: View own waste reports.
 export async function getMyWasteRecords() {
     const result = await authenticatedRequest(
         "/api/waste-records"
@@ -102,7 +113,7 @@ export async function getMyWasteRecords() {
     return result.reports;
 }
 
-// USER: View one own waste report
+// USER: View one own waste report.
 export async function getMyWasteRecord(id) {
     const result = await authenticatedRequest(
         `/api/waste-records/${encodeURIComponent(id)}`
@@ -111,7 +122,7 @@ export async function getMyWasteRecord(id) {
     return result.report;
 }
 
-// USER: Delete own Submitted waste report
+// USER: Delete own Submitted waste report.
 export async function deleteWasteRecord(id) {
     return authenticatedRequest(
         `/api/waste-records/${encodeURIComponent(id)}`,
@@ -121,7 +132,7 @@ export async function deleteWasteRecord(id) {
     );
 }
 
-// ADMIN: View all users' waste reports
+// ADMIN: View all users' waste reports.
 export async function getAdminWasteRecords() {
     const result = await authenticatedRequest(
         "/api/admin/waste-records"
@@ -130,7 +141,7 @@ export async function getAdminWasteRecords() {
     return result.reports;
 }
 
-// ADMIN: Update waste report status
+// ADMIN: Update waste report status.
 export async function updateAdminWasteRecordStatus(id, status) {
     return authenticatedRequest(
         `/api/admin/waste-records/${encodeURIComponent(id)}/status`,

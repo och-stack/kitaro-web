@@ -39,6 +39,7 @@ function getRows(result) {
     const rows =
         result?.analytics ??
         result?.data?.analytics ??
+        result?.data?.data ??
         result?.data ??
         result;
 
@@ -47,7 +48,6 @@ function getRows(result) {
 
 // Display waste composition using a pie chart.
 function WasteCompositionChart({ data }) {
-    // Show a message when no data is available.
     if (!data.length) {
         return (
             <p className="dashboard-empty">
@@ -69,7 +69,6 @@ function WasteCompositionChart({ data }) {
                     innerRadius={55}
                     paddingAngle={3}
                 >
-                    {/* Assign colours to each waste category. */}
                     {data.map((entry, index) => (
                         <Cell
                             key={entry.waste_type || index}
@@ -87,7 +86,6 @@ function WasteCompositionChart({ data }) {
 
 // Display monthly waste reporting trends using a line chart.
 function WasteTrendsChart({ data }) {
-    // Show a message when no data is available.
     if (!data.length) {
         return (
             <p className="dashboard-empty">
@@ -96,7 +94,6 @@ function WasteTrendsChart({ data }) {
         );
     }
 
-    // Format month values for chart display.
     const chartData = data.map((item) => ({
         ...item,
         month: item.month_start
@@ -130,7 +127,6 @@ function WasteTrendsChart({ data }) {
 
 // Display waste hotspots using a horizontal bar chart.
 function WasteHotspotChart({ data }) {
-    // Show a message when no data is available.
     if (!data.length) {
         return (
             <p className="dashboard-empty">
@@ -139,7 +135,6 @@ function WasteHotspotChart({ data }) {
         );
     }
 
-    // Adjust chart height according to the number of areas.
     const chartHeight = Math.max(220, data.length * 65);
 
     return (
@@ -200,6 +195,7 @@ function Dashboard() {
 
     // Track dashboard loading and error states.
     const [loading, setLoading] = useState(true);
+    const [hotspotLoading, setHotspotLoading] = useState(false);
     const [error, setError] = useState("");
 
     // Store user's matched area and admin access status.
@@ -209,7 +205,6 @@ function Dashboard() {
     // Check whether the current user is an admin.
     async function checkAdminAccess() {
         try {
-            // Call the Supabase admin checking function.
             const { data, error } = await supabase.rpc("kitaro_is_admin");
 
             if (error) {
@@ -232,7 +227,6 @@ function Dashboard() {
     // Load collection request statistics.
     async function loadCollectionStats() {
         try {
-            // Run all statistics queries at the same time.
             const [
                 totalResult,
                 submittedResult,
@@ -259,7 +253,6 @@ function Dashboard() {
                     .ilike("status", "resolved"),
             ]);
 
-            // Check whether any query returned an error.
             const results = [
                 totalResult,
                 submittedResult,
@@ -273,7 +266,6 @@ function Dashboard() {
                 throw failedResult.error;
             }
 
-            // Update the collection statistics.
             setCollectionStats({
                 total: totalResult.count ?? 0,
                 submitted: submittedResult.count ?? 0,
@@ -288,7 +280,6 @@ function Dashboard() {
     // Load user's matched area using their saved postal code.
     async function loadMatchedArea() {
         try {
-            // Get the current user's session.
             const {
                 data: { session },
             } = await supabase.auth.getSession();
@@ -297,7 +288,6 @@ function Dashboard() {
                 return;
             }
 
-            // Retrieve the user's profile information.
             const { data: profile, error: profileError } = await supabase
                 .from("kitaro_users")
                 .select("postal_code, matched_area")
@@ -313,17 +303,8 @@ function Dashboard() {
                 return;
             }
 
-            // Display saved profile information in the console.
-            console.log("Saved postal code:", profile.postal_code);
-            console.log("Saved matched area:", profile.matched_area);
-
-            // Update the matched area when available.
             if (profile.matched_area) {
                 setMatchedArea(profile.matched_area);
-            } else {
-                console.log(
-                    "Postal code exists, but no matched area has been saved yet."
-                );
             }
         } catch (error) {
             console.error("Matched area loading error:", error);
@@ -332,19 +313,20 @@ function Dashboard() {
 
     // Load dashboard analytics when the component mounts.
     useEffect(() => {
+        let isMounted = true;
+
         async function loadDashboard() {
             setLoading(true);
             setError("");
 
             try {
-                // Check admin access first.
-                const adminAccess = await checkAdminAccess();
-
-                // Load common dashboard information.
+                // Start independent requests simultaneously.
                 const [
+                    adminAccess,
                     compositionResult,
                     trendsResult,
                 ] = await Promise.all([
+                    checkAdminAccess(),
                     getWasteComposition(),
                     getWasteTrends(),
                     loadCollectionStats(),
@@ -352,33 +334,62 @@ function Dashboard() {
                 ]).then((results) => [
                     results[0],
                     results[1],
+                    results[2],
                 ]);
 
-                // Update chart data.
+                // Stop updating data if the page is no longer active.
+                if (!isMounted) return;
+
+                // Update the main dashboard information.
                 setComposition(getRows(compositionResult));
                 setTrends(getRows(trendsResult));
 
-                // Load hotspot analytics only for admins.
-                if (adminAccess) {
-                    const hotspotResult = await getWasteHotspots();
-                    setHotspots(getRows(hotspotResult));
-                } else {
+                // Display the main dashboard first.
+                setLoading(false);
+
+                // Load hotspot analytics separately for administrators.
+                if (adminAccess && isMounted) {
+                    setHotspotLoading(true);
+
+                    try {
+                        const hotspotResult = await getWasteHotspots();
+
+                        if (isMounted) {
+                            setHotspots(getRows(hotspotResult));
+                        }
+                    } catch (error) {
+                        console.error("Hotspot loading error:", error);
+                    } finally {
+                        if (isMounted) {
+                            setHotspotLoading(false);
+                        }
+                    }
+                } else if (isMounted) {
                     setHotspots([]);
                 }
             } catch (error) {
                 console.error("Dashboard loading error:", error);
-                setError("Unable to load dashboard analytics.");
+
+                if (isMounted) {
+                    setError("Unable to load dashboard analytics.");
+                }
             } finally {
-                setLoading(false);
+                if (isMounted) {
+                    setLoading(false);
+                }
             }
         }
 
         loadDashboard();
+
+        // Prevent state updates after leaving the dashboard.
+        return () => {
+            isMounted = false;
+        };
     }, []);
 
     // Find recycling centres near the matched area.
     function handleFindRecyclingCentres() {
-        // Check whether the user's matched area is available.
         if (!matchedArea) {
             alert(
                 "No matched area found. Please update your postal code in your profile."
@@ -386,15 +397,12 @@ function Dashboard() {
             return;
         }
 
-        // Prepare the Google Maps search query.
         const searchQuery = `recycling centres near ${matchedArea}`;
 
-        // Generate the Google Maps search URL.
         const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
             searchQuery
         )}`;
 
-        // Open Google Maps in a new tab.
         window.open(mapsUrl, "_blank", "noopener,noreferrer");
     }
 
@@ -423,9 +431,17 @@ function Dashboard() {
 
             {/* Display loading message or dashboard analytics. */}
             {loading ? (
-                <p className="dashboard-message">
+                <div
+                    className="dashboard-message"
+                    role="status"
+                    aria-live="polite"
+                >
+                    <span
+                        className="spinner-border spinner-border-sm me-2"
+                        aria-hidden="true"
+                    ></span>
                     Loading dashboard analytics...
-                </p>
+                </div>
             ) : (
                 <>
                     {/* Collection Requests Overview. */}
@@ -518,7 +534,21 @@ function Dashboard() {
                                     </p>
                                 </div>
 
-                                <WasteHotspotChart data={hotspots} />
+                                {hotspotLoading ? (
+                                    <div
+                                        className="dashboard-message"
+                                        role="status"
+                                        aria-live="polite"
+                                    >
+                                        <span
+                                            className="spinner-border spinner-border-sm me-2"
+                                            aria-hidden="true"
+                                        ></span>
+                                        Loading hotspot analytics...
+                                    </div>
+                                ) : (
+                                    <WasteHotspotChart data={hotspots} />
+                                )}
                             </section>
                         </div>
                     )}
