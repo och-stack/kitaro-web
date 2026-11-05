@@ -1,4 +1,3 @@
-
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import Navbar from "./components/Navbar";
@@ -13,18 +12,23 @@ import Profile from "./pages/Profile";
 import Dashboard from "./pages/Dashboard";
 
 function App() {
+  // Get the current page URL.
   const location = useLocation();
 
+  // Identify pages that are accessible without logging in.
   const isPublicPage =
     location.pathname === "/" ||
     location.pathname === "/home" ||
     location.pathname === "/login" ||
     location.pathname === "/signup";
 
+  // Display the appropriate navbar and page routes.
   return (
     <>
+      {/* Show the public navbar or logged-in navbar. */}
       {isPublicPage ? <AuthNavbar /> : <Navbar />}
 
+      {/* Define all application routes. */}
       <Routes>
         {/* Public Pages */}
         <Route path="/" element={<Home />} />
@@ -33,6 +37,7 @@ function App() {
         <Route path="/signup" element={<Signup />} />
 
         {/* Protected Pages */}
+        {/* Only authenticated users can access the dashboard. */}
         <Route
           path="/dashboard"
           element={
@@ -42,6 +47,7 @@ function App() {
           }
         />
 
+        {/* Only authenticated users can access collection requests. */}
         <Route
           path="/collection-requests"
           element={
@@ -51,6 +57,7 @@ function App() {
           }
         />
 
+        {/* Only authenticated users can access their profile. */}
         <Route
           path="/profile"
           element={
@@ -60,7 +67,7 @@ function App() {
           }
         />
 
-        {/* Unknown URL */}
+        {/* Redirect unknown URLs to the home page. */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

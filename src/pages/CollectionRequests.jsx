@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import supabase from "../supabaseClient";
 
@@ -10,6 +9,7 @@ import {
     updateAdminWasteRecordStatus,
 } from "../services/api";
 
+// Available waste categories.
 const wasteCategories = [
     "General / Residual Waste & Food Waste",
     "Paper & Cardboard",
@@ -19,17 +19,18 @@ const wasteCategories = [
     "Electronic Waste (E-waste)",
 ];
 
+// Available collection request statuses.
 const allowedStatuses = [
     "Submitted",
     "Going",
     "Resolved",
 ];
 
-// Temporary profile area cache
+// Temporary profile area cache.
 let cachedProfileArea = "";
 let cachedProfileUserId = "";
 
-// Support both array and { reports: [...] } API responses
+// Support both array and { reports: [...] } API responses.
 function extractReports(result) {
     if (Array.isArray(result)) {
         return result;
@@ -38,7 +39,7 @@ function extractReports(result) {
     return result?.reports || [];
 }
 
-// Convert Supabase record into frontend format
+// Convert Supabase record into frontend format.
 function formatRecord(report, isAdmin = false) {
     return {
         id: report.id,
@@ -61,7 +62,9 @@ function formatRecord(report, isAdmin = false) {
     };
 }
 
+// Main collection requests component.
 function CollectionRequests() {
+    // Store collection request form data.
     const [formData, setFormData] = useState({
         wasteType: "",
         weight: "",
@@ -69,26 +72,32 @@ function CollectionRequests() {
         description: "",
     });
 
+    // Store collection records.
     const [records, setRecords] = useState([]);
 
+    // Check whether the current user is an administrator.
     const [isAdmin, setIsAdmin] = useState(false);
 
+    // Track loading and submission states.
     const [isLoadingArea, setIsLoadingArea] = useState(true);
     const [isLoadingRecords, setIsLoadingRecords] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Track individual record actions.
     const [deletingId, setDeletingId] = useState(null);
     const [updatingId, setUpdatingId] = useState(null);
 
+    // Store error messages.
     const [areaError, setAreaError] = useState("");
     const [recordsError, setRecordsError] = useState("");
     const [submitError, setSubmitError] = useState("");
 
-    // Load profile area for normal users
+    // Load profile area for normal users.
     async function loadProfile(userId, token) {
         try {
             const apiUrl = import.meta.env.VITE_API_URL;
 
+            // Use cached profile area if available.
             if (
                 cachedProfileUserId === userId &&
                 cachedProfileArea
@@ -99,6 +108,7 @@ function CollectionRequests() {
                 }));
             }
 
+            // Fetch profile information from the backend.
             const response = await fetch(
                 `${apiUrl}/api/profile`,
                 {
@@ -116,6 +126,7 @@ function CollectionRequests() {
                 );
             }
 
+            // Save the matched area in the cache.
             const profileArea = result.profile?.matched_area || "";
 
             cachedProfileUserId = userId;
@@ -126,6 +137,7 @@ function CollectionRequests() {
                 area: profileArea,
             }));
 
+            // Display an error if the profile area is unavailable.
             setAreaError(
                 profileArea
                     ? ""
@@ -138,30 +150,31 @@ function CollectionRequests() {
         }
     }
 
-    // Load records according to account permissions
+    // Load records according to account permissions.
     async function loadRecords() {
         try {
             let reports;
             let adminMode = false;
 
             try {
-                // Try administrator endpoint first
+                // Try administrator endpoint first.
                 const adminResult = await getAdminWasteRecords();
 
                 reports = extractReports(adminResult);
                 adminMode = true;
             } catch (error) {
-                // Only a 403 means the account is not an admin
+                // Only a 403 means the account is not an admin.
                 if (error.status !== 403) {
                     throw error;
                 }
 
-                // Normal users can only view their own records
+                // Normal users can only view their own records.
                 const userResult = await getMyWasteRecords();
 
                 reports = extractReports(userResult);
             }
 
+            // Update account permissions and records.
             setIsAdmin(adminMode);
 
             setRecords(
@@ -181,12 +194,13 @@ function CollectionRequests() {
         }
     }
 
-    // Load initial data
+    // Load initial data when the component mounts.
     useEffect(() => {
         let isMounted = true;
 
         async function loadData() {
             try {
+                // Get the current Supabase session.
                 const { data: sessionData, error: sessionError } =
                     await supabase.auth.getSession();
 
@@ -202,12 +216,12 @@ function CollectionRequests() {
                     throw new Error("Please sign in to continue.");
                 }
 
-                // Check account permissions and load records
+                // Check account permissions and load records.
                 const adminMode = await loadRecords();
 
                 if (!isMounted) return;
 
-                // Only normal users need their profile area
+                // Only normal users need their profile area.
                 if (adminMode) {
                     setIsLoadingArea(false);
                 } else {
@@ -225,12 +239,13 @@ function CollectionRequests() {
 
         loadData();
 
+        // Prevent state updates after the component unmounts.
         return () => {
             isMounted = false;
         };
     }, []);
 
-    // Handle form input changes
+    // Handle form input changes.
     function handleChange(event) {
         const { name, value } = event.target;
 
@@ -240,8 +255,9 @@ function CollectionRequests() {
         }));
     }
 
-    // Refresh records
+    // Refresh records after an action.
     async function refreshRecords() {
+        // Admins can view all records.
         if (isAdmin) {
             const result = await getAdminWasteRecords();
             const reports = extractReports(result);
@@ -252,6 +268,7 @@ function CollectionRequests() {
                 )
             );
         } else {
+            // Normal users can only view their own records.
             const result = await getMyWasteRecords();
             const reports = extractReports(result);
 
@@ -263,10 +280,11 @@ function CollectionRequests() {
         }
     }
 
-    // Submit collection request
+    // Submit a new collection request.
     async function handleSubmit(event) {
         event.preventDefault();
 
+        // Check whether the collection area is available.
         if (!formData.area) {
             setAreaError(
                 "Please update your postcode in your profile first."
@@ -278,6 +296,7 @@ function CollectionRequests() {
         setSubmitError("");
 
         try {
+            // Send collection request data to the backend.
             const result = await createWasteRecord({
                 waste_type: formData.wasteType,
                 waste_weight: Number(formData.weight),
@@ -291,9 +310,10 @@ function CollectionRequests() {
                 );
             }
 
+            // Refresh the records table.
             await refreshRecords();
 
-            // Reset form but keep profile area
+            // Reset form but keep profile area.
             setFormData((previousData) => ({
                 ...previousData,
                 wasteType: "",
@@ -310,8 +330,9 @@ function CollectionRequests() {
         }
     }
 
-    // Delete own Submitted waste record
+    // Delete own Submitted waste record.
     async function handleDelete(id) {
+        // Ask for confirmation before deleting.
         const confirmed = window.confirm(
             "Are you sure you want to delete this collection request?"
         );
@@ -322,6 +343,7 @@ function CollectionRequests() {
         setRecordsError("");
 
         try {
+            // Delete the record and refresh the table.
             await deleteWasteRecord(id);
             await refreshRecords();
         } catch (error) {
@@ -333,8 +355,9 @@ function CollectionRequests() {
         }
     }
 
-    // Admin: Update waste record status
+    // Admin: Update waste record status.
     async function handleStatusChange(id, status) {
+        // Only allow valid status values.
         if (!allowedStatuses.includes(status)) {
             return;
         }
@@ -343,6 +366,7 @@ function CollectionRequests() {
         setRecordsError("");
 
         try {
+            // Update the record status and refresh the table.
             await updateAdminWasteRecordStatus(id, status);
             await refreshRecords();
         } catch (error) {
@@ -354,6 +378,7 @@ function CollectionRequests() {
         }
     }
 
+    // Display collection request page.
     return (
         <main className="collection-page">
             <div className="collection-heading">
@@ -370,7 +395,7 @@ function CollectionRequests() {
                 </p>
             </div>
 
-            {/* Normal user collection form */}
+            {/* Normal user collection form. */}
             {!isAdmin && (
                 <section className="collection-panel">
                     <div className="collection-form-wrapper">
@@ -502,6 +527,7 @@ function CollectionRequests() {
                                     </div>
                                 </div>
 
+                                {/* Display submission errors. */}
                                 {submitError && (
                                     <p className="text-danger mt-3">
                                         {submitError}
@@ -513,7 +539,7 @@ function CollectionRequests() {
                 </section>
             )}
 
-            {/* Shared records table */}
+            {/* Shared records table for normal users and admins. */}
             <section className="collection-panel">
                 <div className="collection-records-heading">
                     <h2>Submitted Records</h2>
@@ -524,6 +550,7 @@ function CollectionRequests() {
                     </span>
                 </div>
 
+                {/* Display records loading or error messages. */}
                 {recordsError && (
                     <p className="text-danger">
                         {recordsError}
@@ -546,6 +573,7 @@ function CollectionRequests() {
                         </thead>
 
                         <tbody>
+                            {/* Display loading, empty or available records. */}
                             {isLoadingRecords ? (
                                 <tr>
                                     <td
@@ -567,6 +595,7 @@ function CollectionRequests() {
                                     </td>
                                 </tr>
                             ) : (
+                                // Display each collection record.
                                 records.map((record) => (
                                     <tr key={record.id}>
                                         <td>{record.submittedBy}</td>
@@ -582,6 +611,7 @@ function CollectionRequests() {
                                             </span>
                                         </td>
 
+                                        {/* Show admin status dropdown or user delete button. */}
                                         <td>
                                             {isAdmin ? (
                                                 <select
@@ -638,4 +668,5 @@ function CollectionRequests() {
     );
 }
 
+// Export CollectionRequests for use in other components.
 export default CollectionRequests;

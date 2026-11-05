@@ -4,6 +4,7 @@ import supabase from "../supabaseClient";
 // Keep profile data while navigating between pages.
 let profileCache = null;
 
+// Main profile component.
 function Profile() {
     // Set the initial profile values.
     const [formData, setFormData] = useState(() => ({
@@ -23,6 +24,7 @@ function Profile() {
         area: profileCache?.area || "",
     }));
 
+    // Store messages and loading states.
     const [message, setMessage] = useState("");
     const [isLookingUp, setIsLookingUp] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -34,6 +36,7 @@ function Profile() {
     useEffect(() => {
         async function loadProfile() {
             try {
+                // Get the current Supabase session.
                 const { data: sessionData, error: sessionError } =
                     await supabase.auth.getSession();
 
@@ -43,6 +46,7 @@ function Profile() {
 
                 if (!token) throw new Error("Please log in again.");
 
+                // Request profile information from the backend.
                 const response = await fetch(
                     `${import.meta.env.VITE_API_URL}/api/profile`,
                     {
@@ -69,6 +73,7 @@ function Profile() {
                     area: result.profile.matched_area || "",
                 };
 
+                // Save profile data in the temporary cache.
                 profileCache = savedData;
 
                 // Avoid overwriting the form while the user is editing.
@@ -88,6 +93,7 @@ function Profile() {
     function handleChange(event) {
         const { name, value } = event.target;
 
+        // Mark the form as edited.
         hasEdited.current = true;
 
         setFormData((previousData) => ({
@@ -102,6 +108,7 @@ function Profile() {
     async function handlePostcodeLookup() {
         const postcode = formData.postalCode.trim();
 
+        // Validate the 5-digit Malaysian postcode.
         if (!/^\d{5}$/.test(postcode)) {
             setMessage("Please enter a valid 5-digit Malaysian postcode.");
             return;
@@ -111,6 +118,7 @@ function Profile() {
         setMessage("");
 
         try {
+            // Get the current Supabase session.
             const { data: sessionData, error: sessionError } =
                 await supabase.auth.getSession();
 
@@ -120,6 +128,7 @@ function Profile() {
 
             if (!token) throw new Error("Please log in again.");
 
+            // Send the postcode to the backend for area lookup.
             const response = await fetch(
                 `${import.meta.env.VITE_API_URL}/api/postcode/lookup`,
                 {
@@ -153,6 +162,7 @@ function Profile() {
                 area,
             };
 
+            // Update the temporary profile cache.
             profileCache = updatedData;
 
             setFormData(updatedData);
@@ -166,6 +176,7 @@ function Profile() {
             hasEdited.current = false;
             setMessage("Area lookup completed.");
         } catch (error) {
+            // Display postcode lookup errors.
             setMessage(
                 error.message || "Unable to look up this postcode."
             );
@@ -189,6 +200,7 @@ function Profile() {
                 throw new Error("Please select a valid account type.");
             }
 
+            // Get the current Supabase session.
             const { data: sessionData, error: sessionError } =
                 await supabase.auth.getSession();
 
@@ -198,6 +210,7 @@ function Profile() {
 
             if (!token) throw new Error("Please log in again.");
 
+            // Send updated profile information to the backend.
             const response = await fetch(
                 `${import.meta.env.VITE_API_URL}/api/profile`,
                 {
@@ -229,6 +242,7 @@ function Profile() {
                 userType: result.profile.user_type,
             };
 
+            // Update the temporary profile cache.
             profileCache = savedData;
 
             setFormData(savedData);
@@ -237,6 +251,7 @@ function Profile() {
             hasEdited.current = false;
             setMessage("Profile updated successfully.");
         } catch (error) {
+            // Display profile saving errors.
             setMessage(
                 error.message || "Unable to save profile. Please try again."
             );
@@ -252,6 +267,7 @@ function Profile() {
         setMessage("");
     }
 
+    // Display profile page.
     return (
         <main className="profile-page">
             <div className="profile-heading">
@@ -267,6 +283,7 @@ function Profile() {
 
                 <p>Update your basic account details.</p>
 
+                {/* Profile information form. */}
                 <form onSubmit={handleSave}>
                     <div className="profile-form-grid">
                         <div className="profile-field">
@@ -331,6 +348,7 @@ function Profile() {
 
                     <div className="profile-divider" />
 
+                    {/* Location information section. */}
                     <div className="profile-section-heading">
                         <h2>Location Information</h2>
                         <p>
@@ -360,6 +378,7 @@ function Profile() {
                                     required
                                 />
 
+                                {/* Look up the area using the postcode. */}
                                 <button
                                     type="button"
                                     className="btn btn-outline-kitaro"
@@ -371,6 +390,7 @@ function Profile() {
                             </div>
                         </div>
 
+                        {/* Display the matched area. */}
                         <div className="profile-field">
                             <label htmlFor="area">Matched area</label>
                             <input
@@ -385,6 +405,7 @@ function Profile() {
                         </div>
                     </div>
 
+                    {/* Display status and error messages. */}
                     {message && (
                         <p
                             className="profile-message"
@@ -395,6 +416,7 @@ function Profile() {
                         </p>
                     )}
 
+                    {/* Reset or save profile changes. */}
                     <div className="profile-actions">
                         <button
                             type="button"
@@ -418,4 +440,5 @@ function Profile() {
     );
 }
 
+// Export Profile for use in other components.
 export default Profile;

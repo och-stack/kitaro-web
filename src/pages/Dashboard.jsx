@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 
 import {
@@ -25,6 +24,7 @@ import {
     getWasteTrends,
 } from "../services/api";
 
+// Colours used for dashboard charts.
 const CHART_COLORS = [
     "#123C3A",
     "#47736D",
@@ -34,6 +34,7 @@ const CHART_COLORS = [
     "#A8BDB5",
 ];
 
+// Extract analytics rows from different API response formats.
 function getRows(result) {
     const rows =
         result?.analytics ??
@@ -44,8 +45,9 @@ function getRows(result) {
     return Array.isArray(rows) ? rows : [];
 }
 
-// Waste Composition Chart
+// Display waste composition using a pie chart.
 function WasteCompositionChart({ data }) {
+    // Show a message when no data is available.
     if (!data.length) {
         return (
             <p className="dashboard-empty">
@@ -67,6 +69,7 @@ function WasteCompositionChart({ data }) {
                     innerRadius={55}
                     paddingAngle={3}
                 >
+                    {/* Assign colours to each waste category. */}
                     {data.map((entry, index) => (
                         <Cell
                             key={entry.waste_type || index}
@@ -82,8 +85,9 @@ function WasteCompositionChart({ data }) {
     );
 }
 
-// Waste Reporting Trends Chart
+// Display monthly waste reporting trends using a line chart.
 function WasteTrendsChart({ data }) {
+    // Show a message when no data is available.
     if (!data.length) {
         return (
             <p className="dashboard-empty">
@@ -92,6 +96,7 @@ function WasteTrendsChart({ data }) {
         );
     }
 
+    // Format month values for chart display.
     const chartData = data.map((item) => ({
         ...item,
         month: item.month_start
@@ -123,8 +128,9 @@ function WasteTrendsChart({ data }) {
     );
 }
 
-// Waste Hotspot Chart
+// Display waste hotspots using a horizontal bar chart.
 function WasteHotspotChart({ data }) {
+    // Show a message when no data is available.
     if (!data.length) {
         return (
             <p className="dashboard-empty">
@@ -133,6 +139,7 @@ function WasteHotspotChart({ data }) {
         );
     }
 
+    // Adjust chart height according to the number of areas.
     const chartHeight = Math.max(220, data.length * 65);
 
     return (
@@ -176,11 +183,14 @@ function WasteHotspotChart({ data }) {
     );
 }
 
+// Main dashboard component.
 function Dashboard() {
+    // Store analytics chart data.
     const [composition, setComposition] = useState([]);
     const [trends, setTrends] = useState([]);
     const [hotspots, setHotspots] = useState([]);
 
+    // Store collection request statistics.
     const [collectionStats, setCollectionStats] = useState({
         total: 0,
         submitted: 0,
@@ -188,15 +198,18 @@ function Dashboard() {
         resolved: 0,
     });
 
+    // Track dashboard loading and error states.
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
+    // Store user's matched area and admin access status.
     const [matchedArea, setMatchedArea] = useState("");
     const [isAdmin, setIsAdmin] = useState(false);
 
-    // Check whether the current user is an admin
+    // Check whether the current user is an admin.
     async function checkAdminAccess() {
         try {
+            // Call the Supabase admin checking function.
             const { data, error } = await supabase.rpc("kitaro_is_admin");
 
             if (error) {
@@ -216,9 +229,10 @@ function Dashboard() {
         }
     }
 
-    // Load collection request statistics
+    // Load collection request statistics.
     async function loadCollectionStats() {
         try {
+            // Run all statistics queries at the same time.
             const [
                 totalResult,
                 submittedResult,
@@ -245,6 +259,7 @@ function Dashboard() {
                     .ilike("status", "resolved"),
             ]);
 
+            // Check whether any query returned an error.
             const results = [
                 totalResult,
                 submittedResult,
@@ -258,6 +273,7 @@ function Dashboard() {
                 throw failedResult.error;
             }
 
+            // Update the collection statistics.
             setCollectionStats({
                 total: totalResult.count ?? 0,
                 submitted: submittedResult.count ?? 0,
@@ -269,9 +285,10 @@ function Dashboard() {
         }
     }
 
-    // Load user's matched area using their saved postal code
+    // Load user's matched area using their saved postal code.
     async function loadMatchedArea() {
         try {
+            // Get the current user's session.
             const {
                 data: { session },
             } = await supabase.auth.getSession();
@@ -280,6 +297,7 @@ function Dashboard() {
                 return;
             }
 
+            // Retrieve the user's profile information.
             const { data: profile, error: profileError } = await supabase
                 .from("kitaro_users")
                 .select("postal_code, matched_area")
@@ -295,9 +313,11 @@ function Dashboard() {
                 return;
             }
 
+            // Display saved profile information in the console.
             console.log("Saved postal code:", profile.postal_code);
             console.log("Saved matched area:", profile.matched_area);
 
+            // Update the matched area when available.
             if (profile.matched_area) {
                 setMatchedArea(profile.matched_area);
             } else {
@@ -310,17 +330,17 @@ function Dashboard() {
         }
     }
 
-    // Load dashboard analytics
+    // Load dashboard analytics when the component mounts.
     useEffect(() => {
         async function loadDashboard() {
             setLoading(true);
             setError("");
 
             try {
-                // Check admin access first
+                // Check admin access first.
                 const adminAccess = await checkAdminAccess();
 
-                // Load common dashboard information
+                // Load common dashboard information.
                 const [
                     compositionResult,
                     trendsResult,
@@ -334,10 +354,11 @@ function Dashboard() {
                     results[1],
                 ]);
 
+                // Update chart data.
                 setComposition(getRows(compositionResult));
                 setTrends(getRows(trendsResult));
 
-                // Load hotspot analytics only for admins
+                // Load hotspot analytics only for admins.
                 if (adminAccess) {
                     const hotspotResult = await getWasteHotspots();
                     setHotspots(getRows(hotspotResult));
@@ -355,8 +376,9 @@ function Dashboard() {
         loadDashboard();
     }, []);
 
-    // Find recycling centres near the matched area
+    // Find recycling centres near the matched area.
     function handleFindRecyclingCentres() {
+        // Check whether the user's matched area is available.
         if (!matchedArea) {
             alert(
                 "No matched area found. Please update your postal code in your profile."
@@ -364,15 +386,19 @@ function Dashboard() {
             return;
         }
 
+        // Prepare the Google Maps search query.
         const searchQuery = `recycling centres near ${matchedArea}`;
 
+        // Generate the Google Maps search URL.
         const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
             searchQuery
         )}`;
 
+        // Open Google Maps in a new tab.
         window.open(mapsUrl, "_blank", "noopener,noreferrer");
     }
 
+    // Display dashboard content.
     return (
         <main className="dashboard-page">
             <div className="dashboard-heading">
@@ -388,19 +414,21 @@ function Dashboard() {
                 </div>
             </div>
 
+            {/* Display dashboard error messages. */}
             {error && (
                 <div className="dashboard-error" role="alert">
                     {error}
                 </div>
             )}
 
+            {/* Display loading message or dashboard analytics. */}
             {loading ? (
                 <p className="dashboard-message">
                     Loading dashboard analytics...
                 </p>
             ) : (
                 <>
-                    {/* Collection Requests Overview */}
+                    {/* Collection Requests Overview. */}
                     <section className="dashboard-panel collection-overview-panel">
                         <div className="dashboard-panel-heading">
                             <h2>Collection Requests Overview</h2>
@@ -432,10 +460,10 @@ function Dashboard() {
                         </div>
                     </section>
 
-                    {/* Main Dashboard Panels */}
+                    {/* Main Dashboard Panels. */}
                     <div className="dashboard-top-grid">
 
-                        {/* Waste Composition */}
+                        {/* Waste Composition Chart. */}
                         <section className="dashboard-panel">
                             <div className="dashboard-panel-heading">
                                 <h2>Waste Composition</h2>
@@ -447,7 +475,7 @@ function Dashboard() {
                             <WasteCompositionChart data={composition} />
                         </section>
 
-                        {/* Waste Reporting Trends */}
+                        {/* Waste Reporting Trends Chart. */}
                         <section className="dashboard-panel">
                             <div className="dashboard-panel-heading">
                                 <h2>Waste Reporting Trends</h2>
@@ -459,7 +487,7 @@ function Dashboard() {
                             <WasteTrendsChart data={trends} />
                         </section>
 
-                        {/* Explore and Analyse */}
+                        {/* Find nearby recycling centres. */}
                         <section className="dashboard-panel dashboard-ai-panel">
                             <div className="dashboard-panel-heading">
                                 <h2>Explore & Analyse</h2>
@@ -479,7 +507,7 @@ function Dashboard() {
                         </section>
                     </div>
 
-                    {/* Waste Hotspot Analysis - Admin Only */}
+                    {/* Waste Hotspot Analysis - Admin Only. */}
                     {isAdmin && (
                         <div className="dashboard-bottom-grid">
                             <section className="dashboard-panel dashboard-hotspot-panel">
@@ -500,4 +528,5 @@ function Dashboard() {
     );
 }
 
+// Export Dashboard for use in other components.
 export default Dashboard;

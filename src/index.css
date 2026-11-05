@@ -1,7 +1,6 @@
-/* =================================
-   1. GLOBAL STYLES
-================================= */
+/* 1. GLOBAL STYLES */
 
+/* Global font, colours and KITARO theme variables. */
 :root {
   font-family: Arial, sans-serif;
   color: #123c3a;
@@ -17,6 +16,7 @@
   --kitaro-muted: #617570;
 }
 
+/* Default page layout and background. */
 body {
   margin: 0;
   min-width: 320px;
@@ -24,11 +24,9 @@ body {
   color: var(--kitaro-teal);
 }
 
+/* 2. NAVIGATION */
 
-/* =================================
-   2. NAVIGATION
-================================= */
-
+/* Main navigation bar. */
 .kitaro-navbar {
   min-height: 58px;
   padding: 8px 0;
@@ -42,6 +40,7 @@ body {
   padding: 0 24px;
 }
 
+/* KITARO brand name. */
 .kitaro-brand {
   color: var(--kitaro-teal);
   font-size: 1.25rem;
@@ -54,6 +53,7 @@ body {
   color: var(--kitaro-light-teal);
 }
 
+/* Horizontal navigation links. */
 .kitaro-nav-links {
   display: flex;
   align-items: center;
@@ -61,6 +61,7 @@ body {
   margin-left: auto;
 }
 
+/* Navigation links and active states. */
 .kitaro-nav-link {
   color: var(--kitaro-teal);
   font-size: 0.9rem;
@@ -84,11 +85,9 @@ body {
   outline-offset: 4px;
 }
 
+/* 3. LOGIN AND SIGNUP */
 
-/* =================================
-   3. LOGIN AND SIGNUP
-================================= */
-
+/* Authentication form layout. */
 .auth-page {
   display: flex;
   justify-content: center;
@@ -97,6 +96,7 @@ body {
   padding: 40px 20px;
 }
 
+/* Login and signup form container. */
 .auth-card {
   width: 100%;
   max-width: 520px;
@@ -129,6 +129,7 @@ body {
   line-height: 1.6;
 }
 
+/* Authentication form inputs. */
 .auth-card .form-control {
   min-height: 46px;
   padding: 10px 12px;
@@ -149,6 +150,7 @@ body {
   box-shadow: 0 0 0 2px rgba(71, 115, 109, 0.15);
 }
 
+/* Main KITARO button. */
 .btn-kitaro {
   min-height: 44px;
   color: var(--kitaro-white);
@@ -170,6 +172,7 @@ body {
   outline-offset: 2px;
 }
 
+/* Authentication footer and links. */
 .auth-footer {
   margin: 24px 0 0;
   color: var(--kitaro-muted);
@@ -189,11 +192,9 @@ body {
   text-decoration: underline;
 }
 
+/* 4. COLLECTION REQUESTS */
 
-/* =================================
-   4. COLLECTION REQUESTS
-================================= */
-
+/* Collection requests page layout. */
 .collection-page {
   width: 100%;
   padding: 32px 24px;
@@ -224,6 +225,7 @@ body {
   font-size: 0.95rem;
 }
 
+/* Collection form and records panels. */
 .collection-panel {
   margin-bottom: 24px;
   padding: 24px;
@@ -239,6 +241,7 @@ body {
   font-weight: 700;
 }
 
+/* Collection form grid layout. */
 .collection-form-wrapper {
   width: 100%;
   overflow-x: auto;
@@ -269,6 +272,7 @@ body {
   font-weight: 600;
 }
 
+/* Collection form inputs and dropdowns. */
 .collection-field .form-control,
 .collection-field .form-select {
   min-height: 42px;
@@ -296,6 +300,7 @@ body {
   font-size: 0.82rem;
 }
 
+/* Collection form submit button alignment. */
 .collection-form-actions {
   display: flex;
   justify-content: flex-end;
@@ -315,6 +320,7 @@ body {
   border-radius: 8px;
 }
 
+/* Collection records heading and table. */
 .collection-records-heading {
   display: flex;
   align-items: center;
@@ -364,6 +370,7 @@ body {
   text-align: center;
 }
 
+/* Collection status labels. */
 .collection-status {
   display: inline-block;
   padding: 5px 10px;
@@ -375,11 +382,9 @@ body {
   white-space: nowrap;
 }
 
+/* 5. PROFILE */
 
-/* =================================
-   5. PROFILE
-================================= */
-
+/* Profile page layout and heading. */
 .profile-page {
   width: 100%;
   padding: 32px 24px;
@@ -410,6 +415,7 @@ body {
   font-size: 0.95rem;
 }
 
+/* Profile information container. */
 .profile-card {
   width: 100%;
   max-width: 1000px;
@@ -437,6 +443,7 @@ body {
   font-size: 0.9rem;
 }
 
+/* Profile fields in two columns. */
 .profile-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -455,6 +462,7 @@ body {
   font-weight: 600;
 }
 
+/* Profile inputs and read-only fields. */
 .profile-field .form-control {
   min-height: 44px;
   color: var(--kitaro-teal);
@@ -478,6 +486,7 @@ body {
   background: var(--kitaro-ivory);
 }
 
+/* Postcode input and lookup button. */
 .profile-postcode-group {
   display: flex;
   gap: 10px;
@@ -488,6 +497,7 @@ body {
   min-width: 0;
 }
 
+/* Postcode lookup button. */
 .btn-outline-kitaro {
   flex-shrink: 0;
   color: var(--kitaro-teal);
@@ -508,6 +518,7 @@ body {
   opacity: 0.6;
 }
 
+/* Profile divider, messages and action buttons. */
 .profile-divider {
   margin: 30px 0;
   border-top: 1px solid var(--kitaro-border);
@@ -541,11 +552,9 @@ body {
   border-color: var(--kitaro-light-teal);
 }
 
+/* 6. DASHBOARD */
 
-/* =================================
-   6. DASHBOARD
-================================= */
-
+/* Dashboard page layout and background. */
 .dashboard-page {
   width: 100%;
   min-height: calc(100vh - 58px);
@@ -560,6 +569,7 @@ body {
   margin: 0;
 }
 
+/* Dashboard heading and description. */
 .dashboard-heading {
   display: flex;
   justify-content: space-between;
@@ -604,6 +614,7 @@ body {
   margin-bottom: 0;
 }
 
+/* Dashboard overview sections. */
 .overview-divider {
   width: 100%;
   height: 1px;
@@ -625,6 +636,7 @@ body {
   line-height: 1.8;
 }
 
+/* Dashboard focus items in three columns. */
 .overview-focus-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -661,6 +673,7 @@ body {
   line-height: 1.7;
 }
 
+/* AI insight section. */
 .overview-ai-section {
   margin-top: 36px;
   padding: 28px;
@@ -681,8 +694,7 @@ body {
   line-height: 1.8;
 }
 
-/* Dashboard charts */
-
+/* Dashboard chart layouts. */
 .dashboard-chart-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -707,6 +719,7 @@ body {
   width: 100%;
 }
 
+/* Dashboard chart panels. */
 .dashboard-panel {
   min-width: 0;
   padding: 24px;
@@ -745,6 +758,7 @@ body {
   font-size: 0.85rem;
 }
 
+/* Dashboard empty states and messages. */
 .dashboard-empty {
   padding: 32px 16px;
   color: var(--kitaro-muted);
@@ -767,12 +781,12 @@ body {
   font-size: 0.85rem;
 }
 
-/* Collection statistics */
-
+/* Collection statistics panel. */
 .collection-overview-panel {
   margin-bottom: 24px;
 }
 
+/* Collection statistics in four columns. */
 .collection-stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -799,20 +813,16 @@ body {
   font-size: 14px;
 }
 
+/* 7. KITARO HOMEPAGE */
 
-
-/* =================================
-   7. KITARO HOMEPAGE
-================================= */
-
+/* Homepage layout and colours. */
 .home-page {
   padding: 30px;
   background: #FAF9F6;
   color: var(--kitaro-teal);
 }
 
-/* Hero section */
-
+/* Homepage hero section. */
 .home-hero {
   display: grid;
   grid-template-columns: 1.3fr 1fr;
@@ -848,6 +858,7 @@ body {
   line-height: 1.8;
 }
 
+/* Homepage call-to-action button. */
 .hero-button {
   display: inline-block;
   margin-top: 18px;
@@ -865,8 +876,7 @@ body {
   background: #A96545;
 }
 
-/* KITARO SVG logo */
-
+/* KITARO SVG logo and illustration. */
 .hero-illustration {
   display: flex;
   flex-direction: column;
@@ -895,8 +905,7 @@ body {
   letter-spacing: 0.5px;
 }
 
-/* Recycling guide */
-
+/* Recycling guide section. */
 .recycling-section {
   display: grid;
   grid-template-columns: 0.8fr 1.2fr;
@@ -923,8 +932,7 @@ body {
   line-height: 1.8;
 }
 
-/* Recycling list */
-
+/* Recycling guide list. */
 .recycling-list {
   border-top: 1px solid var(--kitaro-border);
 }
@@ -963,8 +971,7 @@ body {
   font-weight: 600;
 }
 
-/* Closing message */
-
+/* Homepage closing reminder. */
 .home-reminder {
   padding: 45px 8%;
   background: #E9EFEA;
