@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import supabase from "../supabaseClient";
 
@@ -6,6 +5,7 @@ import supabase from "../supabaseClient";
 let profileCache = null;
 
 function Profile() {
+    // Set the initial profile values.
     const [formData, setFormData] = useState(() => ({
         displayName: profileCache?.displayName || "",
         email: profileCache?.email || "",
@@ -14,6 +14,7 @@ function Profile() {
         area: profileCache?.area || "",
     }));
 
+    // Keep the original values for resetting the form.
     const [originalData, setOriginalData] = useState(() => ({
         displayName: profileCache?.displayName || "",
         email: profileCache?.email || "",
@@ -29,22 +30,18 @@ function Profile() {
     // Track whether the user has edited the form.
     const hasEdited = useRef(false);
 
-    // Retrieve the latest profile in the background.
+    // Retrieve the latest profile from the backend.
     useEffect(() => {
         async function loadProfile() {
             try {
                 const { data: sessionData, error: sessionError } =
                     await supabase.auth.getSession();
 
-                if (sessionError) {
-                    throw sessionError;
-                }
+                if (sessionError) throw sessionError;
 
                 const token = sessionData.session?.access_token;
 
-                if (!token) {
-                    throw new Error("Please log in again.");
-                }
+                if (!token) throw new Error("Please log in again.");
 
                 const response = await fetch(
                     `${import.meta.env.VITE_API_URL}/api/profile`,
@@ -63,6 +60,7 @@ function Profile() {
                     );
                 }
 
+                // Prepare the profile data for the form.
                 const savedData = {
                     displayName: result.profile.display_name || "",
                     email: sessionData.session.user.email || "",
@@ -73,7 +71,7 @@ function Profile() {
 
                 profileCache = savedData;
 
-                // Do not overwrite anything the user is currently editing.
+                // Avoid overwriting the form while the user is editing.
                 if (!hasEdited.current) {
                     setFormData(savedData);
                     setOriginalData(savedData);
@@ -86,6 +84,7 @@ function Profile() {
         loadProfile();
     }, []);
 
+    // Update the form when a field changes.
     function handleChange(event) {
         const { name, value } = event.target;
 
@@ -99,7 +98,7 @@ function Profile() {
         setMessage("");
     }
 
-    // Look up postcode through the KITARO backend.
+    // Look up the area using the Malaysian postcode.
     async function handlePostcodeLookup() {
         const postcode = formData.postalCode.trim();
 
@@ -115,15 +114,11 @@ function Profile() {
             const { data: sessionData, error: sessionError } =
                 await supabase.auth.getSession();
 
-            if (sessionError) {
-                throw sessionError;
-            }
+            if (sessionError) throw sessionError;
 
             const token = sessionData.session?.access_token;
 
-            if (!token) {
-                throw new Error("Please log in again.");
-            }
+            if (!token) throw new Error("Please log in again.");
 
             const response = await fetch(
                 `${import.meta.env.VITE_API_URL}/api/postcode/lookup`,
@@ -149,10 +144,9 @@ function Profile() {
 
             const area = result.profile?.matched_area;
 
-            if (!area) {
-                throw new Error("No matched area was returned.");
-            }
+            if (!area) throw new Error("No matched area was returned.");
 
+            // Update the postcode and matched area.
             const updatedData = {
                 ...formData,
                 postalCode: postcode,
@@ -162,6 +156,7 @@ function Profile() {
             profileCache = updatedData;
 
             setFormData(updatedData);
+
             setOriginalData((previousData) => ({
                 ...previousData,
                 postalCode: postcode,
@@ -172,15 +167,14 @@ function Profile() {
             setMessage("Area lookup completed.");
         } catch (error) {
             setMessage(
-                error.message ||
-                "Unable to look up this postcode. Please try again."
+                error.message || "Unable to look up this postcode."
             );
         } finally {
             setIsLookingUp(false);
         }
     }
 
-    // Save the display name to Supabase.
+    // Save the updated profile to the backend.
     async function handleSave(event) {
         event.preventDefault();
 
@@ -188,18 +182,21 @@ function Profile() {
         setMessage("");
 
         try {
+            // Validate the selected account type.
+            if (
+                !["resident", "small_business"].includes(formData.userType)
+            ) {
+                throw new Error("Please select a valid account type.");
+            }
+
             const { data: sessionData, error: sessionError } =
                 await supabase.auth.getSession();
 
-            if (sessionError) {
-                throw sessionError;
-            }
+            if (sessionError) throw sessionError;
 
             const token = sessionData.session?.access_token;
 
-            if (!token) {
-                throw new Error("Please log in again.");
-            }
+            if (!token) throw new Error("Please log in again.");
 
             const response = await fetch(
                 `${import.meta.env.VITE_API_URL}/api/profile`,
@@ -209,8 +206,10 @@ function Profile() {
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
+                    // Send the updated name and account type.
                     body: JSON.stringify({
-                        display_name: formData.displayName,
+                        display_name: formData.displayName.trim(),
+                        user_type: formData.userType,
                     }),
                 }
             );
@@ -223,9 +222,11 @@ function Profile() {
                 );
             }
 
+            // Update the form with the saved profile values.
             const savedData = {
                 ...formData,
                 displayName: result.profile.display_name,
+                userType: result.profile.user_type,
             };
 
             profileCache = savedData;
@@ -244,54 +245,32 @@ function Profile() {
         }
     }
 
+    // Restore the original saved profile values.
     function handleReset() {
         setFormData({ ...originalData });
         hasEdited.current = false;
         setMessage("");
     }
 
-    // Convert the database value into a readable label.
-    const accountType =
-        formData.userType === "admin"
-            ? "Admin"
-            : formData.userType === "small_business"
-                ? "Small Business"
-                : formData.userType === "resident"
-                    ? "Resident"
-                    : "Not Set";
-
     return (
         <main className="profile-page">
             <div className="profile-heading">
                 <p className="profile-eyebrow">ACCOUNT SETTINGS</p>
-
                 <h1>My Profile</h1>
-
-                <p>
-                    Manage your account information and location.
-                </p>
+                <p>Manage your account information and location.</p>
             </div>
 
             <section className="profile-card">
-                <div className="profile-section-heading d-flex align-items-center justify-content-between">
+                <div className="profile-section-heading">
                     <h2>Personal Information</h2>
-
-                    <span className="badge bg-success">
-                        {accountType}
-                    </span>
                 </div>
 
-                <p>
-                    Update your basic account details.
-                </p>
+                <p>Update your basic account details.</p>
 
                 <form onSubmit={handleSave}>
                     <div className="profile-form-grid">
                         <div className="profile-field">
-                            <label htmlFor="displayName">
-                                Display name
-                            </label>
-
+                            <label htmlFor="displayName">Display name</label>
                             <input
                                 id="displayName"
                                 name="displayName"
@@ -306,21 +285,47 @@ function Profile() {
                         </div>
 
                         <div className="profile-field">
-                            <label htmlFor="email">
-                                Email address
-                            </label>
-
+                            <label htmlFor="email">Email address</label>
                             <input
                                 id="email"
                                 name="email"
                                 type="email"
                                 className="form-control"
-                                placeholder="Enter your email address"
-                                autoComplete="email"
                                 value={formData.email}
                                 readOnly
-                                required
                             />
+                        </div>
+
+                        {/* Allow users to update their account type. */}
+                        <div className="profile-field">
+                            <label htmlFor="userType">Account Type</label>
+
+                            {formData.userType === "admin" ? (
+                                <input
+                                    id="userType"
+                                    type="text"
+                                    className="form-control"
+                                    value="Admin"
+                                    readOnly
+                                />
+                            ) : (
+                                <select
+                                    id="userType"
+                                    name="userType"
+                                    className="form-select"
+                                    value={formData.userType}
+                                    onChange={handleChange}
+                                    required
+                                >
+                                    <option value="" disabled>
+                                        Select account type
+                                    </option>
+                                    <option value="resident">Resident</option>
+                                    <option value="small_business">
+                                        Small Business
+                                    </option>
+                                </select>
+                            )}
                         </div>
                     </div>
 
@@ -328,7 +333,6 @@ function Profile() {
 
                     <div className="profile-section-heading">
                         <h2>Location Information</h2>
-
                         <p>
                             Find your area using your Malaysian postcode.
                         </p>
@@ -368,10 +372,7 @@ function Profile() {
                         </div>
 
                         <div className="profile-field">
-                            <label htmlFor="area">
-                                Matched area
-                            </label>
-
+                            <label htmlFor="area">Matched area</label>
                             <input
                                 id="area"
                                 name="area"
