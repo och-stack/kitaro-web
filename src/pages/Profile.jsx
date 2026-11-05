@@ -4,6 +4,15 @@ import supabase from "../supabaseClient";
 // Keep profile data while navigating between pages.
 let profileCache = null;
 
+// Clear cached information when authentication changes.
+if (typeof supabase.auth.onAuthStateChange === "function") {
+    supabase.auth.onAuthStateChange((event) => {
+        if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+            profileCache = null;
+        }
+    });
+}
+
 // Main profile component.
 function Profile() {
     // Set the initial profile values.
@@ -34,6 +43,8 @@ function Profile() {
 
     // Retrieve the latest profile from the backend.
     useEffect(() => {
+        let active = true;
+
         async function loadProfile() {
             try {
                 // Get the current Supabase session.
@@ -42,9 +53,24 @@ function Profile() {
 
                 if (sessionError) throw sessionError;
 
-                const token = sessionData.session?.access_token;
+                const session = sessionData.session;
+                const token = session?.access_token;
+                const userId = session?.user?.id;
 
-                if (!token) throw new Error("Please log in again.");
+                if (!token || !userId) {
+                    throw new Error("Please log in again.");
+                }
+
+                // Prevent another user's cached information from being used.
+                if (profileCache?.userId !== userId) {
+                    profileCache = null;
+                }
+
+                // Restore cached information immediately.
+                if (profileCache && active) {
+                    setFormData(profileCache);
+                    setOriginalData(profileCache);
+                }
 
                 // Request profile information from the backend.
                 const response = await fetch(
@@ -67,33 +93,39 @@ function Profile() {
                 // Prepare the profile data for the form.
                 const savedData = {
                     displayName: result.profile.display_name || "",
-                    email: sessionData.session.user.email || "",
+                    email: session.user.email || "",
                     userType: result.profile.user_type || "",
                     postalCode: result.profile.postal_code || "",
                     area: result.profile.matched_area || "",
+                    userId,
                 };
 
                 // Save profile data in the temporary cache.
                 profileCache = savedData;
 
                 // Avoid overwriting the form while the user is editing.
-                if (!hasEdited.current) {
+                if (active && !hasEdited.current) {
                     setFormData(savedData);
                     setOriginalData(savedData);
                 }
             } catch (error) {
-                console.error("Load profile error:", error.message);
+                if (active) {
+                    console.error("Load profile error:", error.message);
+                }
             }
         }
 
         loadProfile();
+
+        return () => {
+            active = false;
+        };
     }, []);
 
     // Update the form when a field changes.
     function handleChange(event) {
         const { name, value } = event.target;
 
-        // Mark the form as edited.
         hasEdited.current = true;
 
         setFormData((previousData) => ({
@@ -125,8 +157,11 @@ function Profile() {
             if (sessionError) throw sessionError;
 
             const token = sessionData.session?.access_token;
+            const userId = sessionData.session?.user?.id;
 
-            if (!token) throw new Error("Please log in again.");
+            if (!token || !userId) {
+                throw new Error("Please log in again.");
+            }
 
             // Send the postcode to the backend for area lookup.
             const response = await fetch(
@@ -153,13 +188,16 @@ function Profile() {
 
             const area = result.profile?.matched_area;
 
-            if (!area) throw new Error("No matched area was returned.");
+            if (!area) {
+                throw new Error("No matched area was returned.");
+            }
 
             // Update the postcode and matched area.
             const updatedData = {
                 ...formData,
                 postalCode: postcode,
                 area,
+                userId,
             };
 
             // Update the temporary profile cache.
@@ -176,7 +214,6 @@ function Profile() {
             hasEdited.current = false;
             setMessage("Area lookup completed.");
         } catch (error) {
-            // Display postcode lookup errors.
             setMessage(
                 error.message || "Unable to look up this postcode."
             );
@@ -207,8 +244,11 @@ function Profile() {
             if (sessionError) throw sessionError;
 
             const token = sessionData.session?.access_token;
+            const userId = sessionData.session?.user?.id;
 
-            if (!token) throw new Error("Please log in again.");
+            if (!token || !userId) {
+                throw new Error("Please log in again.");
+            }
 
             // Send updated profile information to the backend.
             const response = await fetch(
@@ -219,7 +259,6 @@ function Profile() {
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
-                    // Send the updated name and account type.
                     body: JSON.stringify({
                         display_name: formData.displayName.trim(),
                         user_type: formData.userType,
@@ -240,6 +279,7 @@ function Profile() {
                 ...formData,
                 displayName: result.profile.display_name,
                 userType: result.profile.user_type,
+                userId,
             };
 
             // Update the temporary profile cache.
@@ -251,7 +291,6 @@ function Profile() {
             hasEdited.current = false;
             setMessage("Profile updated successfully.");
         } catch (error) {
-            // Display profile saving errors.
             setMessage(
                 error.message || "Unable to save profile. Please try again."
             );
@@ -378,7 +417,6 @@ function Profile() {
                                     required
                                 />
 
-                                {/* Look up the area using the postcode. */}
                                 <button
                                     type="button"
                                     className="btn btn-outline-kitaro"
