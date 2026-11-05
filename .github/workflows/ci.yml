@@ -1,0 +1,37 @@
+
+name: KITARO Frontend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend-testing:
+    name: Frontend Testing
+    runs-on: ubuntu-latest
+
+    steps:
+      # Download repository files.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Set up Node.js.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Install project dependencies.
+      - name: Install dependencies
+        run: npm ci
+
+      # Run automated page tests.
+      - name: Run frontend tests
+        run: npm run test
+
+      # Check whether the frontend builds successfully.
+      - name: Build frontend
+        run: npm run build
