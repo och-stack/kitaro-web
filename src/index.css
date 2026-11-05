@@ -990,3 +990,11 @@ body {
   font-size: 15px;
   line-height: 1.7;
 }
+
+/* Website footer */
+.app-footer {
+  text-align: center;
+  padding: 16px;
+  color: #47736d;
+  font-size: 14px;
+}

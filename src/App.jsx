@@ -70,6 +70,11 @@ function App() {
         {/* Redirect unknown URLs to the home page. */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      {/* Display the website copyright footer. */}
+      <footer className="app-footer">
+        <p>© 2026 KITARO. All rights reserved.</p>
+      </footer>
     </>
   );
 }
