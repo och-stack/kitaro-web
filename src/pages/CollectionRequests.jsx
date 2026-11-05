@@ -26,9 +26,25 @@ const allowedStatuses = [
     "Resolved",
 ];
 
-// Temporary profile area cache.
-let cachedProfileArea = "";
-let cachedProfileUserId = "";
+// Store collection information temporarily.
+let collectionCache = null;
+
+// Clear cached information when authentication changes.
+if (typeof supabase.auth.onAuthStateChange === "function") {
+    supabase.auth.onAuthStateChange((event) => {
+        if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+            collectionCache = null;
+        }
+    });
+}
+
+// Update the collection cache.
+function updateCollectionCache(data) {
+    collectionCache = {
+        ...collectionCache,
+        ...data,
+    };
+}
 
 // Support both array and { reports: [...] } API responses.
 function extractReports(result) {
@@ -64,23 +80,33 @@ function formatRecord(report, isAdmin = false) {
 
 // Main collection requests component.
 function CollectionRequests() {
-    // Store collection request form data.
+    // Display cached information immediately.
     const [formData, setFormData] = useState({
         wasteType: "",
         weight: "",
-        area: cachedProfileArea,
+        area: collectionCache?.area || "",
         description: "",
     });
 
     // Store collection records.
-    const [records, setRecords] = useState([]);
+    const [records, setRecords] = useState(
+        () => collectionCache?.records ?? []
+    );
 
     // Check whether the current user is an administrator.
-    const [isAdmin, setIsAdmin] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(
+        () => collectionCache?.isAdmin ?? false
+    );
 
     // Track loading and submission states.
-    const [isLoadingArea, setIsLoadingArea] = useState(true);
-    const [isLoadingRecords, setIsLoadingRecords] = useState(true);
+    const [isLoadingArea, setIsLoadingArea] = useState(
+        () => !collectionCache?.area
+    );
+
+    const [isLoadingRecords, setIsLoadingRecords] = useState(
+        () => !Array.isArray(collectionCache?.records)
+    );
+
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Track individual record actions.
@@ -93,22 +119,24 @@ function CollectionRequests() {
     const [submitError, setSubmitError] = useState("");
 
     // Load profile area for normal users.
-    async function loadProfile(userId, token) {
+    async function loadProfile(userId, token, isMounted) {
         try {
-            const apiUrl = import.meta.env.VITE_API_URL;
-
             // Use cached profile area if available.
             if (
-                cachedProfileUserId === userId &&
-                cachedProfileArea
+                collectionCache?.userId === userId &&
+                collectionCache?.area
             ) {
                 setFormData((previousData) => ({
                     ...previousData,
-                    area: cachedProfileArea,
+                    area: collectionCache.area,
                 }));
+
+                setIsLoadingArea(false);
             }
 
             // Fetch profile information from the backend.
+            const apiUrl = import.meta.env.VITE_API_URL;
+
             const response = await fetch(
                 `${apiUrl}/api/profile`,
                 {
@@ -126,32 +154,39 @@ function CollectionRequests() {
                 );
             }
 
-            // Save the matched area in the cache.
             const profileArea = result.profile?.matched_area || "";
 
-            cachedProfileUserId = userId;
-            cachedProfileArea = profileArea;
-
-            setFormData((previousData) => ({
-                ...previousData,
+            // Update cache and page information.
+            updateCollectionCache({
+                userId,
                 area: profileArea,
-            }));
+            });
 
-            // Display an error if the profile area is unavailable.
-            setAreaError(
-                profileArea
-                    ? ""
-                    : "Please update your postcode in your profile first."
-            );
+            if (isMounted()) {
+                setFormData((previousData) => ({
+                    ...previousData,
+                    area: profileArea,
+                }));
+
+                setAreaError(
+                    profileArea
+                        ? ""
+                        : "Please update your postcode in your profile first."
+                );
+            }
         } catch (error) {
-            setAreaError(error.message);
+            if (isMounted()) {
+                setAreaError(error.message);
+            }
         } finally {
-            setIsLoadingArea(false);
+            if (isMounted()) {
+                setIsLoadingArea(false);
+            }
         }
     }
 
     // Load records according to account permissions.
-    async function loadRecords() {
+    async function loadRecords(userId, isMounted) {
         try {
             let reports;
             let adminMode = false;
@@ -174,29 +209,44 @@ function CollectionRequests() {
                 reports = extractReports(userResult);
             }
 
-            // Update account permissions and records.
-            setIsAdmin(adminMode);
-
-            setRecords(
-                reports.map((report) =>
-                    formatRecord(report, adminMode)
-                )
+            // Format records for display.
+            const formattedRecords = reports.map((report) =>
+                formatRecord(report, adminMode)
             );
 
-            setRecordsError("");
+            // Update cache.
+            updateCollectionCache({
+                userId,
+                isAdmin: adminMode,
+                records: formattedRecords,
+            });
+
+            // Update the page.
+            if (isMounted()) {
+                setIsAdmin(adminMode);
+                setRecords(formattedRecords);
+                setRecordsError("");
+            }
 
             return adminMode;
         } catch (error) {
-            setRecordsError(error.message);
+            if (isMounted()) {
+                setRecordsError(error.message);
+            }
+
             throw error;
         } finally {
-            setIsLoadingRecords(false);
+            if (isMounted()) {
+                setIsLoadingRecords(false);
+            }
         }
     }
 
     // Load initial data when the component mounts.
     useEffect(() => {
-        let isMounted = true;
+        let active = true;
+
+        const isMounted = () => active;
 
         async function loadData() {
             try {
@@ -216,19 +266,39 @@ function CollectionRequests() {
                     throw new Error("Please sign in to continue.");
                 }
 
-                // Check account permissions and load records.
-                const adminMode = await loadRecords();
+                if (!isMounted()) return;
 
-                if (!isMounted) return;
+                // Prevent another user's cached information from being used.
+                if (
+                    collectionCache?.userId &&
+                    collectionCache.userId !== userId
+                ) {
+                    collectionCache = null;
+
+                    setRecords([]);
+                    setIsAdmin(false);
+                    setFormData((previousData) => ({
+                        ...previousData,
+                        area: "",
+                    }));
+
+                    setIsLoadingRecords(true);
+                    setIsLoadingArea(true);
+                }
+
+                // Load records and profile information.
+                const adminMode = await loadRecords(userId, isMounted);
+
+                if (!isMounted()) return;
 
                 // Only normal users need their profile area.
                 if (adminMode) {
                     setIsLoadingArea(false);
                 } else {
-                    await loadProfile(userId, token);
+                    await loadProfile(userId, token, isMounted);
                 }
             } catch (error) {
-                if (isMounted) {
+                if (isMounted()) {
                     setRecordsError(error.message);
                     setAreaError(error.message);
                     setIsLoadingArea(false);
@@ -239,9 +309,9 @@ function CollectionRequests() {
 
         loadData();
 
-        // Prevent state updates after the component unmounts.
+        // Prevent state updates after leaving the page.
         return () => {
-            isMounted = false;
+            active = false;
         };
     }, []);
 
@@ -255,29 +325,13 @@ function CollectionRequests() {
         }));
     }
 
-    // Refresh records after an action.
-    async function refreshRecords() {
-        // Admins can view all records.
-        if (isAdmin) {
-            const result = await getAdminWasteRecords();
-            const reports = extractReports(result);
+    // Update records in the page and cache.
+    function updateRecords(updatedRecords) {
+        setRecords(updatedRecords);
 
-            setRecords(
-                reports.map((report) =>
-                    formatRecord(report, true)
-                )
-            );
-        } else {
-            // Normal users can only view their own records.
-            const result = await getMyWasteRecords();
-            const reports = extractReports(result);
-
-            setRecords(
-                reports.map((report) =>
-                    formatRecord(report, false)
-                )
-            );
-        }
+        updateCollectionCache({
+            records: updatedRecords,
+        });
     }
 
     // Submit a new collection request.
@@ -296,13 +350,16 @@ function CollectionRequests() {
         setSubmitError("");
 
         try {
-            // Send collection request data to the backend.
-            const result = await createWasteRecord({
+            // Prepare collection request data.
+            const requestData = {
                 waste_type: formData.wasteType,
                 waste_weight: Number(formData.weight),
                 area: formData.area.trim(),
                 description: formData.description.trim(),
-            });
+            };
+
+            // Send collection request data to the backend.
+            const result = await createWasteRecord(requestData);
 
             if (!result.report) {
                 throw new Error(
@@ -310,8 +367,22 @@ function CollectionRequests() {
                 );
             }
 
-            // Refresh the records table.
-            await refreshRecords();
+            // Add the confirmed record directly to the table.
+            const savedReport = {
+                ...requestData,
+                ...result.report,
+                waste_type:
+                    result.report.waste_type ?? requestData.waste_type,
+                waste_weight:
+                    result.report.waste_weight ?? requestData.waste_weight,
+                area: result.report.area ?? requestData.area,
+                description:
+                    result.report.description ?? requestData.description,
+            };
+
+            const newRecord = formatRecord(savedReport, false);
+
+            updateRecords([newRecord, ...records]);
 
             // Reset form but keep profile area.
             setFormData((previousData) => ({
@@ -343,9 +414,13 @@ function CollectionRequests() {
         setRecordsError("");
 
         try {
-            // Delete the record and refresh the table.
+            // Delete the record from the backend.
             await deleteWasteRecord(id);
-            await refreshRecords();
+
+            // Remove the confirmed deleted record immediately.
+            updateRecords(
+                records.filter((record) => record.id !== id)
+            );
         } catch (error) {
             setRecordsError(
                 error.message || "Unable to delete waste record."
@@ -362,13 +437,23 @@ function CollectionRequests() {
             return;
         }
 
+        const previousRecords = records;
+
         setUpdatingId(id);
         setRecordsError("");
 
         try {
-            // Update the record status and refresh the table.
+            // Update the record status in the backend.
             await updateAdminWasteRecordStatus(id, status);
-            await refreshRecords();
+
+            // Reflect the confirmed status immediately.
+            const updatedRecords = previousRecords.map((record) =>
+                record.id === id
+                    ? { ...record, status }
+                    : record
+            );
+
+            updateRecords(updatedRecords);
         } catch (error) {
             setRecordsError(
                 error.message || "Unable to update report status."
@@ -552,7 +637,7 @@ function CollectionRequests() {
 
                 {/* Display records loading or error messages. */}
                 {recordsError && (
-                    <p className="text-danger">
+                    <p className="text-danger" role="alert">
                         {recordsError}
                     </p>
                 )}
@@ -595,7 +680,6 @@ function CollectionRequests() {
                                     </td>
                                 </tr>
                             ) : (
-                                // Display each collection record.
                                 records.map((record) => (
                                     <tr key={record.id}>
                                         <td>{record.submittedBy}</td>

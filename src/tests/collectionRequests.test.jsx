@@ -1,14 +1,46 @@
+import {
+    describe,
+    it,
+    expect,
+    vi,
+    beforeEach,
+    afterEach,
+} from "vitest";
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import {
+    render,
+    screen,
+    waitFor,
+    cleanup,
+} from "@testing-library/react";
+
 import userEvent from "@testing-library/user-event";
 import CollectionRequests from "../pages/CollectionRequests";
+
+// Store the authentication listener for cache reset.
+const { mockAuthListener } = vi.hoisted(() => ({
+    mockAuthListener: {
+        callback: null,
+    },
+}));
 
 // Mock Supabase authentication.
 vi.mock("../supabaseClient", () => ({
     default: {
         auth: {
             getSession: vi.fn(),
+
+            onAuthStateChange: vi.fn((callback) => {
+                mockAuthListener.callback = callback;
+
+                return {
+                    data: {
+                        subscription: {
+                            unsubscribe: vi.fn(),
+                        },
+                    },
+                };
+            }),
         },
     },
 }));
@@ -23,6 +55,7 @@ vi.mock("../services/api", () => ({
 }));
 
 import supabase from "../supabaseClient";
+
 import {
     createWasteRecord,
     getMyWasteRecords,
@@ -53,8 +86,12 @@ describe("Collection Requests Page", () => {
     beforeEach(() => {
         vi.clearAllMocks();
 
+        // Clear cached collection information between tests.
+        mockAuthListener.callback?.("SIGNED_OUT");
+
         vi.stubEnv("VITE_API_URL", "http://localhost:3000");
 
+        // Mock the current user's session.
         supabase.auth.getSession.mockResolvedValue({
             data: {
                 session: mockSession,
@@ -68,22 +105,27 @@ describe("Collection Requests Page", () => {
             message: "Forbidden",
         });
 
+        // Normal users have no existing records by default.
         getMyWasteRecords.mockResolvedValue({
             reports: [],
         });
 
         // Return the user's collection area.
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                profile: {
-                    matched_area: "Rawang",
-                },
-            }),
-        }));
+        vi.stubGlobal(
+            "fetch",
+            vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => ({
+                    profile: {
+                        matched_area: "Rawang",
+                    },
+                }),
+            })
+        );
     });
 
     afterEach(() => {
+        cleanup();
         vi.unstubAllEnvs();
         vi.unstubAllGlobals();
         vi.restoreAllMocks();
@@ -91,7 +133,7 @@ describe("Collection Requests Page", () => {
 
     // Page display tests.
 
-    it("renders the collection requests heading", () => {
+    it("renders the collection requests heading", async () => {
         render(<CollectionRequests />);
 
         expect(
@@ -99,9 +141,13 @@ describe("Collection Requests Page", () => {
                 name: /collection requests/i,
             })
         ).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(getMyWasteRecords).toHaveBeenCalledTimes(1);
+        });
     });
 
-    it("displays the collection request form", () => {
+    it("displays the collection request form", async () => {
         render(<CollectionRequests />);
 
         expect(
@@ -115,9 +161,11 @@ describe("Collection Requests Page", () => {
                 name: /submit request/i,
             })
         ).toBeInTheDocument();
+
+        await screen.findByText("Rawang");
     });
 
-    it("displays all available waste categories", () => {
+    it("displays all available waste categories", async () => {
         render(<CollectionRequests />);
 
         const categorySelect = screen.getByLabelText(/waste category/i);
@@ -129,7 +177,9 @@ describe("Collection Requests Page", () => {
         ).toBeInTheDocument();
 
         expect(
-            screen.getByRole("option", { name: "Paper & Cardboard" })
+            screen.getByRole("option", {
+                name: "Paper & Cardboard",
+            })
         ).toBeInTheDocument();
 
         expect(
@@ -145,6 +195,8 @@ describe("Collection Requests Page", () => {
                 name: "Electronic Waste (E-waste)",
             })
         ).toBeInTheDocument();
+
+        await screen.findByText("Rawang");
     });
 
     it("loads the user's collection area", async () => {
@@ -207,10 +259,6 @@ describe("Collection Requests Page", () => {
             report: mockReport,
         });
 
-        getMyWasteRecords
-            .mockResolvedValueOnce({ reports: [] })
-            .mockResolvedValueOnce({ reports: [mockReport] });
-
         render(<CollectionRequests />);
 
         await screen.findByText("Rawang");
@@ -231,7 +279,9 @@ describe("Collection Requests Page", () => {
         );
 
         await user.click(
-            screen.getByRole("button", { name: /submit request/i })
+            screen.getByRole("button", {
+                name: /submit request/i,
+            })
         );
 
         await waitFor(() => {
@@ -243,10 +293,15 @@ describe("Collection Requests Page", () => {
             });
         });
 
+        // The saved record appears without another records API request.
         expect(await screen.findByText("2.50")).toBeInTheDocument();
 
+        expect(getMyWasteRecords).toHaveBeenCalledTimes(1);
+
         expect(screen.getByLabelText(/waste category/i)).toHaveValue("");
-        expect(screen.getByLabelText(/total waste weight/i)).toHaveValue(null);
+        expect(
+            screen.getByLabelText(/total waste weight/i)
+        ).toHaveValue(null);
         expect(screen.getByLabelText(/description/i)).toHaveValue("");
     });
 
@@ -277,7 +332,9 @@ describe("Collection Requests Page", () => {
         );
 
         await user.click(
-            screen.getByRole("button", { name: /submit request/i })
+            screen.getByRole("button", {
+                name: /submit request/i,
+            })
         );
 
         expect(
@@ -294,9 +351,9 @@ describe("Collection Requests Page", () => {
 
         vi.spyOn(window, "confirm").mockReturnValue(true);
 
-        getMyWasteRecords
-            .mockResolvedValueOnce({ reports: [mockReport] })
-            .mockResolvedValueOnce({ reports: [] });
+        getMyWasteRecords.mockResolvedValue({
+            reports: [mockReport],
+        });
 
         deleteWasteRecord.mockResolvedValue({});
 
@@ -305,7 +362,9 @@ describe("Collection Requests Page", () => {
         await screen.findByText("Plastic bottles");
 
         await user.click(
-            screen.getByRole("button", { name: /delete/i })
+            screen.getByRole("button", {
+                name: /delete/i,
+            })
         );
 
         await waitFor(() => {
@@ -314,11 +373,14 @@ describe("Collection Requests Page", () => {
 
         expect(window.confirm).toHaveBeenCalled();
 
+        // The record disappears without another records API request.
         expect(
             await screen.findByText(
                 "No records yet. Submit your first collection request above."
             )
         ).toBeInTheDocument();
+
+        expect(getMyWasteRecords).toHaveBeenCalledTimes(1);
     });
 
     it("does not delete a request when confirmation is cancelled", async () => {
@@ -335,7 +397,9 @@ describe("Collection Requests Page", () => {
         await screen.findByText("Plastic bottles");
 
         await user.click(
-            screen.getByRole("button", { name: /delete/i })
+            screen.getByRole("button", {
+                name: /delete/i,
+            })
         );
 
         expect(deleteWasteRecord).not.toHaveBeenCalled();
@@ -366,6 +430,8 @@ describe("Collection Requests Page", () => {
                 name: /submit a collection request/i,
             })
         ).not.toBeInTheDocument();
+
+        expect(fetch).not.toHaveBeenCalled();
     });
 
     it("allows an admin to update a report status", async () => {
@@ -389,5 +455,14 @@ describe("Collection Requests Page", () => {
                 "Going"
             );
         });
+
+        // The updated status appears without fetching the records again.
+        await waitFor(() => {
+            expect(
+                screen.getByDisplayValue("Going")
+            ).toBeInTheDocument();
+        });
+
+        expect(getAdminWasteRecords).toHaveBeenCalledTimes(1);
     });
 });
