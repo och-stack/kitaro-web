@@ -147,11 +147,11 @@ describe("Collection Requests Page", () => {
         });
     });
 
-    it("displays the collection request form", async () => {
+    it("displays the collection request form and submit button", async () => {
         render(<CollectionRequests />);
 
         expect(
-            screen.getByRole("heading", {
+            await screen.findByRole("heading", {
                 name: /submit a collection request/i,
             })
         ).toBeInTheDocument();
@@ -162,13 +162,76 @@ describe("Collection Requests Page", () => {
             })
         ).toBeInTheDocument();
 
+        expect(
+            screen.getByRole("heading", {
+                name: /submitted records/i,
+            })
+        ).toBeInTheDocument();
+
         await screen.findByText("Rawang");
+    });
+
+    it("displays the form and records table before the profile request finishes", async () => {
+        let resolveProfile;
+
+        fetch.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveProfile = resolve;
+                })
+        );
+
+        render(<CollectionRequests />);
+
+        // Wait until the normal user form appears.
+        expect(
+            await screen.findByRole("button", {
+                name: /submit request/i,
+            })
+        ).toBeInTheDocument();
+
+        // The records table is already visible.
+        expect(
+            screen.getByRole("heading", {
+                name: /submitted records/i,
+            })
+        ).toBeInTheDocument();
+
+        // The profile request has not finished.
+        expect(
+            screen.getByText("Loading area")
+        ).toBeInTheDocument();
+
+        // Submit button is visible but cannot submit without an area.
+        expect(
+            screen.getByRole("button", {
+                name: /submit request/i,
+            })
+        ).toBeDisabled();
+
+        // Finish the profile request.
+        resolveProfile({
+            ok: true,
+            json: async () => ({
+                profile: {
+                    matched_area: "Rawang",
+                },
+            }),
+        });
+
+        expect(await screen.findByText("Rawang")).toBeInTheDocument();
+
+        expect(
+            screen.getByRole("button", {
+                name: /submit request/i,
+            })
+        ).toBeEnabled();
     });
 
     it("displays all available waste categories", async () => {
         render(<CollectionRequests />);
 
-        const categorySelect = screen.getByLabelText(/waste category/i);
+        const categorySelect = await screen.findByLabelText(/waste category/i);
 
         expect(categorySelect).toHaveDisplayValue("Select category");
 
@@ -233,7 +296,9 @@ describe("Collection Requests Page", () => {
 
         render(<CollectionRequests />);
 
-        expect(await screen.findByText("Plastic")).toBeInTheDocument();
+        expect(
+            await screen.findByRole("cell", { name: "Plastic" })
+        ).toBeInTheDocument();
         expect(screen.getByText("2.50")).toBeInTheDocument();
         expect(screen.getAllByText("Rawang")).toHaveLength(2);
         expect(screen.getByText("Plastic bottles")).toBeInTheDocument();
@@ -248,6 +313,15 @@ describe("Collection Requests Page", () => {
         render(<CollectionRequests />);
 
         expect(await screen.findByText("1 record")).toBeInTheDocument();
+    });
+
+    it("requests admin and user records simultaneously", async () => {
+        render(<CollectionRequests />);
+
+        await waitFor(() => {
+            expect(getAdminWasteRecords).toHaveBeenCalledTimes(1);
+            expect(getMyWasteRecords).toHaveBeenCalledTimes(1);
+        });
     });
 
     // Collection request submission tests.
@@ -299,9 +373,11 @@ describe("Collection Requests Page", () => {
         expect(getMyWasteRecords).toHaveBeenCalledTimes(1);
 
         expect(screen.getByLabelText(/waste category/i)).toHaveValue("");
+
         expect(
             screen.getByLabelText(/total waste weight/i)
         ).toHaveValue(null);
+
         expect(screen.getByLabelText(/description/i)).toHaveValue("");
     });
 
@@ -431,7 +507,11 @@ describe("Collection Requests Page", () => {
             })
         ).not.toBeInTheDocument();
 
+        // Admin accounts do not need to load their profile area.
         expect(fetch).not.toHaveBeenCalled();
+
+        // Both record endpoints are requested in parallel.
+        expect(getMyWasteRecords).toHaveBeenCalledTimes(1);
     });
 
     it("allows an admin to update a report status", async () => {
@@ -456,7 +536,7 @@ describe("Collection Requests Page", () => {
             );
         });
 
-        // The updated status appears without fetching the records again.
+        // The updated status appears without fetching records again.
         await waitFor(() => {
             expect(
                 screen.getByDisplayValue("Going")

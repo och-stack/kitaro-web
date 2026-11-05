@@ -98,7 +98,12 @@ function CollectionRequests() {
         () => collectionCache?.isAdmin ?? false
     );
 
-    // Track loading and submission states.
+    // Track whether the account role has been identified.
+    const [isRoleReady, setIsRoleReady] = useState(
+        () => Boolean(collectionCache?.userId)
+    );
+
+    // Track loading states independently.
     const [isLoadingArea, setIsLoadingArea] = useState(
         () => !collectionCache?.area
     );
@@ -108,8 +113,6 @@ function CollectionRequests() {
     );
 
     const [isSubmitting, setIsSubmitting] = useState(false);
-
-    // Track individual record actions.
     const [deletingId, setDeletingId] = useState(null);
     const [updatingId, setUpdatingId] = useState(null);
 
@@ -126,12 +129,14 @@ function CollectionRequests() {
                 collectionCache?.userId === userId &&
                 collectionCache?.area
             ) {
-                setFormData((previousData) => ({
-                    ...previousData,
-                    area: collectionCache.area,
-                }));
+                if (isMounted()) {
+                    setFormData((previousData) => ({
+                        ...previousData,
+                        area: collectionCache.area,
+                    }));
 
-                setIsLoadingArea(false);
+                    setIsLoadingArea(false);
+                }
             }
 
             // Fetch profile information from the backend.
@@ -156,7 +161,7 @@ function CollectionRequests() {
 
             const profileArea = result.profile?.matched_area || "";
 
-            // Update cache and page information.
+            // Update cache.
             updateCollectionCache({
                 userId,
                 area: profileArea,
@@ -185,28 +190,36 @@ function CollectionRequests() {
         }
     }
 
-    // Load records according to account permissions.
+    // Load records using both endpoints simultaneously.
     async function loadRecords(userId, isMounted) {
         try {
+            const [adminResponse, userResponse] =
+                await Promise.allSettled([
+                    getAdminWasteRecords(),
+                    getMyWasteRecords(),
+                ]);
+
             let reports;
             let adminMode = false;
 
-            try {
-                // Try administrator endpoint first.
-                const adminResult = await getAdminWasteRecords();
-
-                reports = extractReports(adminResult);
+            // Use admin records when the admin endpoint succeeds.
+            if (adminResponse.status === "fulfilled") {
+                reports = extractReports(adminResponse.value);
                 adminMode = true;
-            } catch (error) {
+            } else {
+                const adminError = adminResponse.reason;
+
                 // Only a 403 means the account is not an admin.
-                if (error.status !== 403) {
-                    throw error;
+                if (adminError.status !== 403) {
+                    throw adminError;
                 }
 
-                // Normal users can only view their own records.
-                const userResult = await getMyWasteRecords();
+                // Use normal user records.
+                if (userResponse.status === "rejected") {
+                    throw userResponse.reason;
+                }
 
-                reports = extractReports(userResult);
+                reports = extractReports(userResponse.value);
             }
 
             // Format records for display.
@@ -221,9 +234,9 @@ function CollectionRequests() {
                 records: formattedRecords,
             });
 
-            // Update the page.
             if (isMounted()) {
                 setIsAdmin(adminMode);
+                setIsRoleReady(true);
                 setRecords(formattedRecords);
                 setRecordsError("");
             }
@@ -232,6 +245,7 @@ function CollectionRequests() {
         } catch (error) {
             if (isMounted()) {
                 setRecordsError(error.message);
+                setIsRoleReady(true);
             }
 
             throw error;
@@ -277,6 +291,8 @@ function CollectionRequests() {
 
                     setRecords([]);
                     setIsAdmin(false);
+                    setIsRoleReady(false);
+
                     setFormData((previousData) => ({
                         ...previousData,
                         area: "",
@@ -286,8 +302,31 @@ function CollectionRequests() {
                     setIsLoadingArea(true);
                 }
 
-                // Load records and profile information.
-                const adminMode = await loadRecords(userId, isMounted);
+                // Restore cached information for this account.
+                if (collectionCache?.userId === userId) {
+                    if (Array.isArray(collectionCache.records)) {
+                        setRecords(collectionCache.records);
+                        setIsLoadingRecords(false);
+                    }
+
+                    setIsAdmin(collectionCache.isAdmin ?? false);
+                    setIsRoleReady(true);
+
+                    if (collectionCache.area) {
+                        setFormData((previousData) => ({
+                            ...previousData,
+                            area: collectionCache.area,
+                        }));
+
+                        setIsLoadingArea(false);
+                    }
+                }
+
+                // Retrieve records.
+                const adminMode = await loadRecords(
+                    userId,
+                    isMounted
+                );
 
                 if (!isMounted()) return;
 
@@ -301,6 +340,7 @@ function CollectionRequests() {
                 if (isMounted()) {
                     setRecordsError(error.message);
                     setAreaError(error.message);
+                    setIsRoleReady(true);
                     setIsLoadingArea(false);
                     setIsLoadingRecords(false);
                 }
@@ -338,7 +378,6 @@ function CollectionRequests() {
     async function handleSubmit(event) {
         event.preventDefault();
 
-        // Check whether the collection area is available.
         if (!formData.area) {
             setAreaError(
                 "Please update your postcode in your profile first."
@@ -358,7 +397,7 @@ function CollectionRequests() {
                 description: formData.description.trim(),
             };
 
-            // Send collection request data to the backend.
+            // Send collection request to the backend.
             const result = await createWasteRecord(requestData);
 
             if (!result.report) {
@@ -367,7 +406,7 @@ function CollectionRequests() {
                 );
             }
 
-            // Add the confirmed record directly to the table.
+            // Combine the saved record with submitted information.
             const savedReport = {
                 ...requestData,
                 ...result.report,
@@ -382,7 +421,19 @@ function CollectionRequests() {
 
             const newRecord = formatRecord(savedReport, false);
 
-            updateRecords([newRecord, ...records]);
+            // Add the new record without fetching the entire table again.
+            setRecords((previousRecords) => {
+                const updatedRecords = [
+                    newRecord,
+                    ...previousRecords,
+                ];
+
+                updateCollectionCache({
+                    records: updatedRecords,
+                });
+
+                return updatedRecords;
+            });
 
             // Reset form but keep profile area.
             setFormData((previousData) => ({
@@ -403,7 +454,6 @@ function CollectionRequests() {
 
     // Delete own Submitted waste record.
     async function handleDelete(id) {
-        // Ask for confirmation before deleting.
         const confirmed = window.confirm(
             "Are you sure you want to delete this collection request?"
         );
@@ -417,10 +467,18 @@ function CollectionRequests() {
             // Delete the record from the backend.
             await deleteWasteRecord(id);
 
-            // Remove the confirmed deleted record immediately.
-            updateRecords(
-                records.filter((record) => record.id !== id)
-            );
+            // Remove the deleted record immediately.
+            setRecords((previousRecords) => {
+                const updatedRecords = previousRecords.filter(
+                    (record) => record.id !== id
+                );
+
+                updateCollectionCache({
+                    records: updatedRecords,
+                });
+
+                return updatedRecords;
+            });
         } catch (error) {
             setRecordsError(
                 error.message || "Unable to delete waste record."
@@ -432,12 +490,9 @@ function CollectionRequests() {
 
     // Admin: Update waste record status.
     async function handleStatusChange(id, status) {
-        // Only allow valid status values.
         if (!allowedStatuses.includes(status)) {
             return;
         }
-
-        const previousRecords = records;
 
         setUpdatingId(id);
         setRecordsError("");
@@ -447,13 +502,19 @@ function CollectionRequests() {
             await updateAdminWasteRecordStatus(id, status);
 
             // Reflect the confirmed status immediately.
-            const updatedRecords = previousRecords.map((record) =>
-                record.id === id
-                    ? { ...record, status }
-                    : record
-            );
+            setRecords((previousRecords) => {
+                const updatedRecords = previousRecords.map((record) =>
+                    record.id === id
+                        ? { ...record, status }
+                        : record
+                );
 
-            updateRecords(updatedRecords);
+                updateCollectionCache({
+                    records: updatedRecords,
+                });
+
+                return updatedRecords;
+            });
         } catch (error) {
             setRecordsError(
                 error.message || "Unable to update report status."
@@ -481,7 +542,7 @@ function CollectionRequests() {
             </div>
 
             {/* Normal user collection form. */}
-            {!isAdmin && (
+            {isRoleReady && !isAdmin && (
                 <section className="collection-panel">
                     <div className="collection-form-wrapper">
                         <div className="collection-form-content">
@@ -600,7 +661,6 @@ function CollectionRequests() {
                                             type="submit"
                                             className="btn btn-kitaro collection-submit-btn"
                                             disabled={
-                                                isLoadingArea ||
                                                 !formData.area ||
                                                 isSubmitting
                                             }
@@ -612,7 +672,6 @@ function CollectionRequests() {
                                     </div>
                                 </div>
 
-                                {/* Display submission errors. */}
                                 {submitError && (
                                     <p className="text-danger mt-3">
                                         {submitError}
@@ -635,7 +694,6 @@ function CollectionRequests() {
                     </span>
                 </div>
 
-                {/* Display records loading or error messages. */}
                 {recordsError && (
                     <p className="text-danger" role="alert">
                         {recordsError}
@@ -658,8 +716,7 @@ function CollectionRequests() {
                         </thead>
 
                         <tbody>
-                            {/* Display loading, empty or available records. */}
-                            {isLoadingRecords ? (
+                            {isLoadingRecords && records.length === 0 ? (
                                 <tr>
                                     <td
                                         colSpan="8"
@@ -695,7 +752,6 @@ function CollectionRequests() {
                                             </span>
                                         </td>
 
-                                        {/* Show admin status dropdown or user delete button. */}
                                         <td>
                                             {isAdmin ? (
                                                 <select
