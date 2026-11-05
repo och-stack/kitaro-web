@@ -727,16 +727,7 @@ function CollectionRequests() {
                         </thead>
 
                         <tbody>
-                            {isLoadingRecords && records.length === 0 ? (
-                                <tr>
-                                    <td
-                                        colSpan="8"
-                                        className="collection-empty"
-                                    >
-                                        Loading submitted records...
-                                    </td>
-                                </tr>
-                            ) : records.length === 0 ? (
+                            {records.length === 0 && isLoadingRecords ? null : records.length === 0 ? (
                                 <tr>
                                     <td
                                         colSpan="8"
