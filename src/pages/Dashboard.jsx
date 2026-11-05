@@ -34,6 +34,24 @@ const CHART_COLORS = [
     "#A8BDB5",
 ];
 
+// Temporarily store dashboard information.
+let dashboardCache = null;
+
+// Clear cached information when authentication changes.
+supabase.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+        dashboardCache = null;
+    }
+});
+
+// Update the dashboard cache.
+function updateDashboardCache(data) {
+    dashboardCache = {
+        ...dashboardCache,
+        ...data,
+    };
+}
+
 // Extract analytics rows from different API response formats.
 function getRows(result) {
     const rows =
@@ -180,27 +198,45 @@ function WasteHotspotChart({ data }) {
 
 // Main dashboard component.
 function Dashboard() {
-    // Store analytics chart data.
-    const [composition, setComposition] = useState([]);
-    const [trends, setTrends] = useState([]);
-    const [hotspots, setHotspots] = useState([]);
+    // Display cached analytics immediately when available.
+    const [composition, setComposition] = useState(
+        () => dashboardCache?.composition ?? []
+    );
+
+    const [trends, setTrends] = useState(
+        () => dashboardCache?.trends ?? []
+    );
+
+    const [hotspots, setHotspots] = useState(
+        () => dashboardCache?.hotspots ?? []
+    );
 
     // Store collection request statistics.
-    const [collectionStats, setCollectionStats] = useState({
-        total: 0,
-        submitted: 0,
-        going: 0,
-        resolved: 0,
-    });
+    const [collectionStats, setCollectionStats] = useState(
+        () => dashboardCache?.collectionStats ?? {
+            total: 0,
+            submitted: 0,
+            going: 0,
+            resolved: 0,
+        }
+    );
 
-    // Track dashboard loading and error states.
-    const [loading, setLoading] = useState(true);
+    // Only show the main loading screen when no cache exists.
+    const [loading, setLoading] = useState(
+        () => !dashboardCache
+    );
+
     const [hotspotLoading, setHotspotLoading] = useState(false);
     const [error, setError] = useState("");
 
     // Store user's matched area and admin access status.
-    const [matchedArea, setMatchedArea] = useState("");
-    const [isAdmin, setIsAdmin] = useState(false);
+    const [matchedArea, setMatchedArea] = useState(
+        () => dashboardCache?.matchedArea ?? ""
+    );
+
+    const [isAdmin, setIsAdmin] = useState(
+        () => dashboardCache?.isAdmin ?? false
+    );
 
     // Check whether the current user is an admin.
     async function checkAdminAccess() {
@@ -214,6 +250,10 @@ function Dashboard() {
             const adminAccess = data === true;
 
             setIsAdmin(adminAccess);
+
+            updateDashboardCache({
+                isAdmin: adminAccess,
+            });
 
             return adminAccess;
         } catch (error) {
@@ -266,11 +306,17 @@ function Dashboard() {
                 throw failedResult.error;
             }
 
-            setCollectionStats({
+            const stats = {
                 total: totalResult.count ?? 0,
                 submitted: submittedResult.count ?? 0,
                 going: goingResult.count ?? 0,
                 resolved: resolvedResult.count ?? 0,
+            };
+
+            setCollectionStats(stats);
+
+            updateDashboardCache({
+                collectionStats: stats,
             });
         } catch (error) {
             console.error("Collection statistics error:", error);
@@ -305,18 +351,26 @@ function Dashboard() {
 
             if (profile.matched_area) {
                 setMatchedArea(profile.matched_area);
+
+                updateDashboardCache({
+                    matchedArea: profile.matched_area,
+                });
             }
         } catch (error) {
             console.error("Matched area loading error:", error);
         }
     }
 
-    // Load dashboard analytics when the component mounts.
+    // Load dashboard information and refresh cached data.
     useEffect(() => {
         let isMounted = true;
 
         async function loadDashboard() {
-            setLoading(true);
+            // Only show loading when there is no cached dashboard.
+            if (!dashboardCache) {
+                setLoading(true);
+            }
+
             setError("");
 
             try {
@@ -337,25 +391,46 @@ function Dashboard() {
                     results[2],
                 ]);
 
-                // Stop updating data if the page is no longer active.
                 if (!isMounted) return;
 
-                // Update the main dashboard information.
-                setComposition(getRows(compositionResult));
-                setTrends(getRows(trendsResult));
+                // Update analytics information.
+                const compositionData = getRows(compositionResult);
+                const trendsData = getRows(trendsResult);
 
-                // Display the main dashboard first.
+                setComposition(compositionData);
+                setTrends(trendsData);
+
+                // Save the latest analytics information.
+                updateDashboardCache({
+                    composition: compositionData,
+                    trends: trendsData,
+                });
+
+                // Display the dashboard without waiting for hotspots.
                 setLoading(false);
 
                 // Load hotspot analytics separately for administrators.
                 if (adminAccess && isMounted) {
-                    setHotspotLoading(true);
+                    // Keep existing hotspot data visible during refresh.
+                    const hasCachedHotspots = Array.isArray(
+                        dashboardCache?.hotspots
+                    );
+
+                    if (!hasCachedHotspots) {
+                        setHotspotLoading(true);
+                    }
 
                     try {
                         const hotspotResult = await getWasteHotspots();
 
                         if (isMounted) {
-                            setHotspots(getRows(hotspotResult));
+                            const hotspotData = getRows(hotspotResult);
+
+                            setHotspots(hotspotData);
+
+                            updateDashboardCache({
+                                hotspots: hotspotData,
+                            });
                         }
                     } catch (error) {
                         console.error("Hotspot loading error:", error);
@@ -366,6 +441,10 @@ function Dashboard() {
                     }
                 } else if (isMounted) {
                     setHotspots([]);
+
+                    updateDashboardCache({
+                        hotspots: [],
+                    });
                 }
             } catch (error) {
                 console.error("Dashboard loading error:", error);
