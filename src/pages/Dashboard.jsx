@@ -221,11 +221,6 @@ function Dashboard() {
         }
     );
 
-    // Only show the main loading screen when no cache exists.
-    const [loading, setLoading] = useState(
-        () => !dashboardCache
-    );
-
     const [hotspotLoading, setHotspotLoading] = useState(false);
     const [error, setError] = useState("");
 
@@ -366,11 +361,6 @@ function Dashboard() {
         let isMounted = true;
 
         async function loadDashboard() {
-            // Only show loading when there is no cached dashboard.
-            if (!dashboardCache) {
-                setLoading(true);
-            }
-
             setError("");
 
             try {
@@ -406,12 +396,8 @@ function Dashboard() {
                     trends: trendsData,
                 });
 
-                // Display the dashboard without waiting for hotspots.
-                setLoading(false);
-
                 // Load hotspot analytics separately for administrators.
                 if (adminAccess && isMounted) {
-                    // Keep existing hotspot data visible during refresh.
                     const hasCachedHotspots = Array.isArray(
                         dashboardCache?.hotspots
                     );
@@ -451,10 +437,6 @@ function Dashboard() {
 
                 if (isMounted) {
                     setError("Unable to load dashboard analytics.");
-                }
-            } finally {
-                if (isMounted) {
-                    setLoading(false);
                 }
             }
         }
@@ -508,131 +490,117 @@ function Dashboard() {
                 </div>
             )}
 
-            {/* Display loading message or dashboard analytics. */}
-            {loading ? (
-                <div
-                    className="dashboard-message"
-                    role="status"
-                    aria-live="polite"
-                >
-                    <span
-                        className="spinner-border spinner-border-sm me-2"
-                        aria-hidden="true"
-                    ></span>
-                    Loading dashboard analytics...
-                </div>
-            ) : (
-                <>
-                    {/* Collection Requests Overview. */}
-                    <section className="dashboard-panel collection-overview-panel">
+            {/* Display dashboard analytics immediately. */}
+            <>
+                {/* Collection Requests Overview. */}
+                <section className="dashboard-panel collection-overview-panel">
+                    <div className="dashboard-panel-heading">
+                        <h2>Collection Requests Overview</h2>
+                        <p>
+                            Summary of collection request activity.
+                        </p>
+                    </div>
+
+                    <div className="collection-stats-grid">
+                        <div className="collection-stat-card">
+                            <h3>{collectionStats.total}</h3>
+                            <p>Total Requests</p>
+                        </div>
+
+                        <div className="collection-stat-card">
+                            <h3>{collectionStats.submitted}</h3>
+                            <p>Submitted</p>
+                        </div>
+
+                        <div className="collection-stat-card">
+                            <h3>{collectionStats.going}</h3>
+                            <p>Going</p>
+                        </div>
+
+                        <div className="collection-stat-card">
+                            <h3>{collectionStats.resolved}</h3>
+                            <p>Resolved</p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Main Dashboard Panels. */}
+                <div className="dashboard-top-grid">
+
+                    {/* Waste Composition Chart. */}
+                    <section className="dashboard-panel">
                         <div className="dashboard-panel-heading">
-                            <h2>Collection Requests Overview</h2>
+                            <h2>Waste Composition</h2>
                             <p>
-                                Summary of collection request activity.
+                                Breakdown of reported waste categories.
                             </p>
                         </div>
 
-                        <div className="collection-stats-grid">
-                            <div className="collection-stat-card">
-                                <h3>{collectionStats.total}</h3>
-                                <p>Total Requests</p>
-                            </div>
-
-                            <div className="collection-stat-card">
-                                <h3>{collectionStats.submitted}</h3>
-                                <p>Submitted</p>
-                            </div>
-
-                            <div className="collection-stat-card">
-                                <h3>{collectionStats.going}</h3>
-                                <p>Going</p>
-                            </div>
-
-                            <div className="collection-stat-card">
-                                <h3>{collectionStats.resolved}</h3>
-                                <p>Resolved</p>
-                            </div>
-                        </div>
+                        <WasteCompositionChart data={composition} />
                     </section>
 
-                    {/* Main Dashboard Panels. */}
-                    <div className="dashboard-top-grid">
+                    {/* Waste Reporting Trends Chart. */}
+                    <section className="dashboard-panel">
+                        <div className="dashboard-panel-heading">
+                            <h2>Waste Reporting Trends</h2>
+                            <p>
+                                Monthly waste reporting activity.
+                            </p>
+                        </div>
 
-                        {/* Waste Composition Chart. */}
-                        <section className="dashboard-panel">
+                        <WasteTrendsChart data={trends} />
+                    </section>
+
+                    {/* Find nearby recycling centres. */}
+                    <section className="dashboard-panel dashboard-ai-panel">
+                        <div className="dashboard-panel-heading">
+                            <h2>Explore & Analyse</h2>
+                            <p>
+                                Find recycling locations near your matched area.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            className="btn btn-kitaro w-100"
+                            onClick={handleFindRecyclingCentres}
+                        >
+                            <i className="bi bi-geo-alt me-2"></i>
+                            Find Nearby Recycling Centres
+                        </button>
+                    </section>
+                </div>
+
+                {/* Waste Hotspot Analysis - Admin Only. */}
+                {isAdmin && (
+                    <div className="dashboard-bottom-grid">
+                        <section className="dashboard-panel dashboard-hotspot-panel">
                             <div className="dashboard-panel-heading">
-                                <h2>Waste Composition</h2>
+                                <h2>Waste Hotspot Analysis</h2>
                                 <p>
-                                    Breakdown of reported waste categories.
+                                    Areas with the highest reported waste weight.
                                 </p>
                             </div>
 
-                            <WasteCompositionChart data={composition} />
-                        </section>
-
-                        {/* Waste Reporting Trends Chart. */}
-                        <section className="dashboard-panel">
-                            <div className="dashboard-panel-heading">
-                                <h2>Waste Reporting Trends</h2>
-                                <p>
-                                    Monthly waste reporting activity.
-                                </p>
-                            </div>
-
-                            <WasteTrendsChart data={trends} />
-                        </section>
-
-                        {/* Find nearby recycling centres. */}
-                        <section className="dashboard-panel dashboard-ai-panel">
-                            <div className="dashboard-panel-heading">
-                                <h2>Explore & Analyse</h2>
-                                <p>
-                                    Find recycling locations near your matched area.
-                                </p>
-                            </div>
-
-                            <button
-                                type="button"
-                                className="btn btn-kitaro w-100"
-                                onClick={handleFindRecyclingCentres}
-                            >
-                                <i className="bi bi-geo-alt me-2"></i>
-                                Find Nearby Recycling Centres
-                            </button>
+                            {hotspotLoading ? (
+                                <div
+                                    className="dashboard-message"
+                                    role="status"
+                                    aria-live="polite"
+                                >
+                                    <span
+                                        className="spinner-border spinner-border-sm me-2"
+                                        aria-hidden="true"
+                                    ></span>
+                                    Loading hotspot analytics...
+                                </div>
+                            ) : (
+                                <WasteHotspotChart data={hotspots} />
+                            )}
                         </section>
                     </div>
-
-                    {/* Waste Hotspot Analysis - Admin Only. */}
-                    {isAdmin && (
-                        <div className="dashboard-bottom-grid">
-                            <section className="dashboard-panel dashboard-hotspot-panel">
-                                <div className="dashboard-panel-heading">
-                                    <h2>Waste Hotspot Analysis</h2>
-                                    <p>
-                                        Areas with the highest reported waste weight.
-                                    </p>
-                                </div>
-
-                                {hotspotLoading ? (
-                                    <div
-                                        className="dashboard-message"
-                                        role="status"
-                                        aria-live="polite"
-                                    >
-                                        <span
-                                            className="spinner-border spinner-border-sm me-2"
-                                            aria-hidden="true"
-                                        ></span>
-                                        Loading hotspot analytics...
-                                    </div>
-                                ) : (
-                                    <WasteHotspotChart data={hotspots} />
-                                )}
-                            </section>
-                        </div>
-                    )}
-                </>
-            )}
+                )}
+            </>
         </main>
     );
 }
