@@ -190,36 +190,47 @@ function CollectionRequests() {
         }
     }
 
-    // Load records using both endpoints simultaneously.
+    // Load records using the cached account role when available.
     async function loadRecords(userId, isMounted) {
         try {
-            const [adminResponse, userResponse] =
-                await Promise.allSettled([
-                    getAdminWasteRecords(),
-                    getMyWasteRecords(),
-                ]);
-
             let reports;
-            let adminMode = false;
+            let adminMode;
 
-            // Use admin records when the admin endpoint succeeds.
-            if (adminResponse.status === "fulfilled") {
-                reports = extractReports(adminResponse.value);
-                adminMode = true;
+            // Reuse the cached account role.
+            if (collectionCache?.userId === userId) {
+                adminMode = collectionCache.isAdmin;
+
+                const result = adminMode
+                    ? await getAdminWasteRecords()
+                    : await getMyWasteRecords();
+
+                reports = extractReports(result);
             } else {
-                const adminError = adminResponse.reason;
+                // Identify the account role on the first visit.
+                const [adminResponse, userResponse] =
+                    await Promise.allSettled([
+                        getAdminWasteRecords(),
+                        getMyWasteRecords(),
+                    ]);
 
-                // Only a 403 means the account is not an admin.
-                if (adminError.status !== 403) {
-                    throw adminError;
+                if (adminResponse.status === "fulfilled") {
+                    reports = extractReports(adminResponse.value);
+                    adminMode = true;
+                } else {
+                    const adminError = adminResponse.reason;
+
+                    // Only a 403 means the account is not an admin.
+                    if (adminError.status !== 403) {
+                        throw adminError;
+                    }
+
+                    if (userResponse.status === "rejected") {
+                        throw userResponse.reason;
+                    }
+
+                    reports = extractReports(userResponse.value);
+                    adminMode = false;
                 }
-
-                // Use normal user records.
-                if (userResponse.status === "rejected") {
-                    throw userResponse.reason;
-                }
-
-                reports = extractReports(userResponse.value);
             }
 
             // Format records for display.
@@ -302,15 +313,15 @@ function CollectionRequests() {
                     setIsLoadingArea(true);
                 }
 
-                // Restore cached information for this account.
-                if (collectionCache?.userId === userId) {
-                    if (Array.isArray(collectionCache.records)) {
-                        setRecords(collectionCache.records);
-                        setIsLoadingRecords(false);
-                    }
+                // Restore cached information immediately.
+                const hasCache =
+                    collectionCache?.userId === userId;
 
+                if (hasCache) {
+                    setRecords(collectionCache.records || []);
                     setIsAdmin(collectionCache.isAdmin ?? false);
                     setIsRoleReady(true);
+                    setIsLoadingRecords(false);
 
                     if (collectionCache.area) {
                         setFormData((previousData) => ({
@@ -322,17 +333,26 @@ function CollectionRequests() {
                     }
                 }
 
-                // Retrieve records.
-                const adminMode = await loadRecords(
+                // Refresh records.
+                const recordsPromise = loadRecords(
                     userId,
                     isMounted
                 );
 
+                // Refresh profile concurrently for a known normal user.
+                const profilePromise =
+                    hasCache && !collectionCache.isAdmin
+                        ? loadProfile(userId, token, isMounted)
+                        : null;
+
+                const adminMode = await recordsPromise;
+
                 if (!isMounted()) return;
 
-                // Only normal users need their profile area.
                 if (adminMode) {
                     setIsLoadingArea(false);
+                } else if (profilePromise) {
+                    await profilePromise;
                 } else {
                     await loadProfile(userId, token, isMounted);
                 }
@@ -363,15 +383,6 @@ function CollectionRequests() {
             ...previousData,
             [name]: value,
         }));
-    }
-
-    // Update records in the page and cache.
-    function updateRecords(updatedRecords) {
-        setRecords(updatedRecords);
-
-        updateCollectionCache({
-            records: updatedRecords,
-        });
     }
 
     // Submit a new collection request.
