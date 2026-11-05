@@ -1,4 +1,3 @@
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -10,11 +9,14 @@ import {
     getWasteHotspots,
 } from "../services/api";
 
-// Store mock data for Supabase queries.
-const { mockQueryResults } = vi.hoisted(() => ({
+// Store mock data for Supabase queries and authentication.
+const { mockQueryResults, mockAuthListener } = vi.hoisted(() => ({
     mockQueryResults: {
         counts: [],
         profile: null,
+    },
+    mockAuthListener: {
+        callback: null,
     },
 }));
 
@@ -44,6 +46,18 @@ vi.mock("../supabaseClient", () => ({
     default: {
         auth: {
             getSession: vi.fn(),
+
+            onAuthStateChange: vi.fn((callback) => {
+                mockAuthListener.callback = callback;
+
+                return {
+                    data: {
+                        subscription: {
+                            unsubscribe: vi.fn(),
+                        },
+                    },
+                };
+            }),
         },
         rpc: vi.fn(),
         from: vi.fn(),
@@ -138,6 +152,9 @@ function createMockQuery() {
 beforeEach(() => {
     vi.clearAllMocks();
 
+    // Clear cached dashboard information between tests.
+    mockAuthListener.callback?.("SIGNED_OUT");
+
     // Mock the user's login session.
     supabase.auth.getSession.mockResolvedValue({
         data: {
@@ -191,27 +208,36 @@ describe("Dashboard Page", () => {
         render(<Dashboard />);
 
         expect(
-            screen.getByRole("heading", { name: /dashboard/i })
+            screen.getByRole("heading", { name: "Dashboard" })
         ).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(getWasteComposition).toHaveBeenCalledTimes(1);
+            expect(getWasteTrends).toHaveBeenCalledTimes(1);
+        });
     });
 
-    // Test 2: Loading message.
-    it("displays the loading message initially", () => {
-        getWasteComposition.mockReturnValue(new Promise(() => { }));
-
+    // Test 2: Dashboard displays immediately without a loading message.
+    it("displays the dashboard immediately", () => {
         render(<Dashboard />);
 
         expect(
-            screen.getByText(/loading dashboard analytics/i)
+            screen.getByRole("heading", { name: "Dashboard" })
         ).toBeInTheDocument();
+
+        expect(
+            screen.queryByText(/loading dashboard analytics/i)
+        ).not.toBeInTheDocument();
     });
 
     // Test 3: Dashboard sections.
-    it("displays the dashboard sections after loading", async () => {
+    it("displays the dashboard sections", () => {
         render(<Dashboard />);
 
         expect(
-            await screen.findByText(/collection requests overview/i)
+            screen.getByRole("heading", {
+                name: "Collection Requests Overview",
+            })
         ).toBeInTheDocument();
 
         expect(
@@ -219,19 +245,13 @@ describe("Dashboard Page", () => {
         ).toBeInTheDocument();
 
         expect(
-            screen.getByRole("heading", { name: "Waste Reporting Trends" })
+            screen.getByRole("heading", {
+                name: "Waste Reporting Trends",
+            })
         ).toBeInTheDocument();
 
         expect(
             screen.getByRole("heading", { name: "Explore & Analyse" })
-        ).toBeInTheDocument();
-
-        expect(
-            screen.getByText(/waste reporting trends/i)
-        ).toBeInTheDocument();
-
-        expect(
-            screen.getByText(/explore & analyse/i)
         ).toBeInTheDocument();
     });
 
@@ -239,30 +259,30 @@ describe("Dashboard Page", () => {
     it("displays collection request statistics", async () => {
         render(<Dashboard />);
 
-        await screen.findByText(/collection requests overview/i);
-
-        expect(screen.getByText("20")).toBeInTheDocument();
-        expect(screen.getByText("5")).toBeInTheDocument();
-        expect(screen.getByText("7")).toBeInTheDocument();
-        expect(screen.getByText("8")).toBeInTheDocument();
+        await waitFor(() => {
+            expect(screen.getByText("20")).toBeInTheDocument();
+            expect(screen.getByText("5")).toBeInTheDocument();
+            expect(screen.getByText("7")).toBeInTheDocument();
+            expect(screen.getByText("8")).toBeInTheDocument();
+        });
     });
 
     // Test 5: Waste composition analytics.
     it("loads waste composition analytics", async () => {
         render(<Dashboard />);
 
-        await screen.findByText(/waste composition/i);
-
-        expect(getWasteComposition).toHaveBeenCalledTimes(1);
+        await waitFor(() => {
+            expect(getWasteComposition).toHaveBeenCalledTimes(1);
+        });
     });
 
     // Test 6: Waste reporting trends.
     it("loads monthly waste reporting trends", async () => {
         render(<Dashboard />);
 
-        await screen.findByText(/waste reporting trends/i);
-
-        expect(getWasteTrends).toHaveBeenCalledTimes(1);
+        await waitFor(() => {
+            expect(getWasteTrends).toHaveBeenCalledTimes(1);
+        });
     });
 
     // Test 7: Normal users cannot access hotspot analytics.
@@ -274,9 +294,12 @@ describe("Dashboard Page", () => {
 
         render(<Dashboard />);
 
-        await screen.findByText(/collection requests overview/i);
+        await waitFor(() => {
+            expect(supabase.rpc).toHaveBeenCalledWith("kitaro_is_admin");
+        });
 
         expect(getWasteHotspots).not.toHaveBeenCalled();
+
         expect(
             screen.queryByText(/waste hotspot analysis/i)
         ).not.toBeInTheDocument();
@@ -292,10 +315,14 @@ describe("Dashboard Page", () => {
         render(<Dashboard />);
 
         expect(
-            await screen.findByText(/waste hotspot analysis/i)
+            await screen.findByRole("heading", {
+                name: "Waste Hotspot Analysis",
+            })
         ).toBeInTheDocument();
 
-        expect(getWasteHotspots).toHaveBeenCalledTimes(1);
+        await waitFor(() => {
+            expect(getWasteHotspots).toHaveBeenCalledTimes(1);
+        });
     });
 
     // Test 9: Empty waste composition.
@@ -307,12 +334,14 @@ describe("Dashboard Page", () => {
         render(<Dashboard />);
 
         expect(
-            await screen.findByText(/no waste composition data available/i)
+            await screen.findByText(
+                /no waste composition data available/i
+            )
         ).toBeInTheDocument();
     });
 
     // Test 10: Empty reporting trends.
-    it("displays a message when reporting trend data is empty", async () => {
+    it("displays a message when reporting trends are empty", async () => {
         getWasteTrends.mockResolvedValue({
             analytics: [],
         });
@@ -320,7 +349,9 @@ describe("Dashboard Page", () => {
         render(<Dashboard />);
 
         expect(
-            await screen.findByText(/no reporting trend data available/i)
+            await screen.findByText(
+                /no reporting trend data available/i
+            )
         ).toBeInTheDocument();
     });
 
@@ -359,7 +390,11 @@ describe("Dashboard Page", () => {
 
         render(<Dashboard />);
 
-        const button = await screen.findByRole("button", {
+        await waitFor(() => {
+            expect(supabase.from).toHaveBeenCalledWith("kitaro_users");
+        });
+
+        const button = screen.getByRole("button", {
             name: /find nearby recycling centres/i,
         });
 
@@ -386,7 +421,12 @@ describe("Dashboard Page", () => {
 
         render(<Dashboard />);
 
-        const button = await screen.findByRole("button", {
+        // Wait until the profile request has completed.
+        await waitFor(() => {
+            expect(supabase.from).toHaveBeenCalledWith("kitaro_users");
+        });
+
+        const button = screen.getByRole("button", {
             name: /find nearby recycling centres/i,
         });
 
@@ -408,8 +448,8 @@ describe("Dashboard Page", () => {
         render(<Dashboard />);
 
         expect(
-            await screen.findByText(/unable to load dashboard analytics/i)
-        ).toBeInTheDocument();
+            await screen.findByRole("alert")
+        ).toHaveTextContent(/unable to load dashboard analytics/i);
     });
 
     // Test 16: Admin permission check error.
@@ -420,7 +460,9 @@ describe("Dashboard Page", () => {
 
         render(<Dashboard />);
 
-        await screen.findByText(/collection requests overview/i);
+        await waitFor(() => {
+            expect(supabase.rpc).toHaveBeenCalledWith("kitaro_is_admin");
+        });
 
         expect(getWasteHotspots).not.toHaveBeenCalled();
     });
