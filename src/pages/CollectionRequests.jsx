@@ -1,6 +1,6 @@
+
 import { useEffect, useState } from "react";
 import supabase from "../supabaseClient";
-
 import {
     createWasteRecord,
     getMyWasteRecords,
@@ -9,7 +9,7 @@ import {
     updateAdminWasteRecordStatus,
 } from "../services/api";
 
-// Available waste categories.
+// These are the available waste categories and request statuses.
 const wasteCategories = [
     "General / Residual Waste & Food Waste",
     "Paper & Cardboard",
@@ -19,43 +19,9 @@ const wasteCategories = [
     "Electronic Waste (E-waste)",
 ];
 
-// Available collection request statuses.
-const allowedStatuses = [
-    "Submitted",
-    "Going",
-    "Resolved",
-];
+const allowedStatuses = ["Submitted", "Going", "Resolved"];
 
-// Store collection information temporarily.
-let collectionCache = null;
-
-// Clear cached information when authentication changes.
-if (typeof supabase.auth.onAuthStateChange === "function") {
-    supabase.auth.onAuthStateChange((event) => {
-        if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
-            collectionCache = null;
-        }
-    });
-}
-
-// Update the collection cache.
-function updateCollectionCache(data) {
-    collectionCache = {
-        ...collectionCache,
-        ...data,
-    };
-}
-
-// Support both array and { reports: [...] } API responses.
-function extractReports(result) {
-    if (Array.isArray(result)) {
-        return result;
-    }
-
-    return result?.reports || [];
-}
-
-// Convert Supabase record into frontend format.
+// This prepares database records for display in the table.
 function formatRecord(report, isAdmin = false) {
     return {
         id: report.id,
@@ -71,328 +37,141 @@ function formatRecord(report, isAdmin = false) {
             : "-",
         status: report.status || "Submitted",
         submittedBy: isAdmin
-            ? report.user?.display_name ||
-            report.user?.email ||
-            "Unknown user"
+            ? report.user?.display_name || "Unknown user"
             : "You",
     };
 }
 
-// Main collection requests component.
 function CollectionRequests() {
-    // Display cached information immediately.
+    // These states store the form values and collection records.
     const [formData, setFormData] = useState({
         wasteType: "",
         weight: "",
-        area: collectionCache?.area || "",
+        area: "",
         description: "",
     });
 
-    // Store collection records.
-    const [records, setRecords] = useState(
-        () => collectionCache?.records ?? []
-    );
+    const [records, setRecords] = useState([]);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [isRoleReady, setIsRoleReady] = useState(false);
 
-    // Check whether the current user is an administrator.
-    const [isAdmin, setIsAdmin] = useState(
-        () => collectionCache?.isAdmin ?? false
-    );
-
-    // Track whether the account role has been identified.
-    const [isRoleReady, setIsRoleReady] = useState(
-        () => Boolean(collectionCache?.userId)
-    );
-
-    // Track loading states independently.
-    const [isLoadingArea, setIsLoadingArea] = useState(
-        () => !collectionCache?.area
-    );
-
-    const [isLoadingRecords, setIsLoadingRecords] = useState(
-        () => !Array.isArray(collectionCache?.records)
-    );
-
+    // These states control loading and user actions.
+    const [isLoadingArea, setIsLoadingArea] = useState(true);
+    const [isLoadingRecords, setIsLoadingRecords] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [deletingId, setDeletingId] = useState(null);
     const [updatingId, setUpdatingId] = useState(null);
 
-    // Store error messages.
+    // These states display errors from API requests.
     const [areaError, setAreaError] = useState("");
     const [recordsError, setRecordsError] = useState("");
     const [submitError, setSubmitError] = useState("");
 
-    // Load profile area for normal users.
-    async function loadProfile(userId, token, isMounted) {
-        try {
-            // Use cached profile area if available.
-            if (
-                collectionCache?.userId === userId &&
-                collectionCache?.area
-            ) {
-                if (isMounted()) {
-                    setFormData((previousData) => ({
-                        ...previousData,
-                        area: collectionCache.area,
-                    }));
-
-                    setIsLoadingArea(false);
-                }
-            }
-
-            // Fetch profile information from the backend.
-            const apiUrl = import.meta.env.VITE_API_URL;
-
-            const response = await fetch(
-                `${apiUrl}/api/profile`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(
-                    result.message || "Unable to load profile area."
-                );
-            }
-
-            const profileArea = result.profile?.matched_area || "";
-
-            // Update cache.
-            updateCollectionCache({
-                userId,
-                area: profileArea,
-            });
-
-            if (isMounted()) {
-                setFormData((previousData) => ({
-                    ...previousData,
-                    area: profileArea,
-                }));
-
-                setAreaError(
-                    profileArea
-                        ? ""
-                        : "Please update your postcode in your profile first."
-                );
-            }
-        } catch (error) {
-            if (isMounted()) {
-                setAreaError(error.message);
-            }
-        } finally {
-            if (isMounted()) {
-                setIsLoadingArea(false);
-            }
-        }
-    }
-
-    // Load records using the cached account role when available.
-    async function loadRecords(userId, isMounted) {
-        try {
-            let reports;
-            let adminMode;
-
-            // Reuse the cached account role.
-            if (collectionCache?.userId === userId) {
-                adminMode = collectionCache.isAdmin;
-
-                const result = adminMode
-                    ? await getAdminWasteRecords()
-                    : await getMyWasteRecords();
-
-                reports = extractReports(result);
-            } else {
-                // Identify the account role on the first visit.
-                const [adminResponse, userResponse] =
-                    await Promise.allSettled([
-                        getAdminWasteRecords(),
-                        getMyWasteRecords(),
-                    ]);
-
-                if (adminResponse.status === "fulfilled") {
-                    reports = extractReports(adminResponse.value);
-                    adminMode = true;
-                } else {
-                    const adminError = adminResponse.reason;
-
-                    // Only a 403 means the account is not an admin.
-                    if (adminError.status !== 403) {
-                        throw adminError;
-                    }
-
-                    if (userResponse.status === "rejected") {
-                        throw userResponse.reason;
-                    }
-
-                    reports = extractReports(userResponse.value);
-                    adminMode = false;
-                }
-            }
-
-            // Format records for display.
-            const formattedRecords = reports.map((report) =>
-                formatRecord(report, adminMode)
-            );
-
-            // Update cache.
-            updateCollectionCache({
-                userId,
-                isAdmin: adminMode,
-                records: formattedRecords,
-            });
-
-            if (isMounted()) {
-                setIsAdmin(adminMode);
-                setIsRoleReady(true);
-                setRecords(formattedRecords);
-                setRecordsError("");
-            }
-
-            return adminMode;
-        } catch (error) {
-            if (isMounted()) {
-                setRecordsError(error.message);
-                setIsRoleReady(true);
-            }
-
-            throw error;
-        } finally {
-            if (isMounted()) {
-                setIsLoadingRecords(false);
-            }
-        }
-    }
-
-    // Load initial data when the component mounts.
+    // This loads the account, records and profile when the page opens.
     useEffect(() => {
         let active = true;
 
-        const isMounted = () => active;
-
         async function loadData() {
             try {
-                // Get the current Supabase session.
-                const { data: sessionData, error: sessionError } =
-                    await supabase.auth.getSession();
+                // This retrieves the current user's Supabase session.
+                const { data, error } = await supabase.auth.getSession();
+                if (error) throw error;
 
-                if (sessionError) {
-                    throw sessionError;
-                }
+                const token = data.session?.access_token;
 
-                const session = sessionData.session;
-                const token = session?.access_token;
-                const userId = session?.user?.id;
-
-                if (!token || !userId) {
+                if (!token) {
                     throw new Error("Please sign in to continue.");
                 }
 
-                if (!isMounted()) return;
+                // This checks admin access before loading resident records.
+                let result;
+                let adminMode = false;
 
-                // Prevent another user's cached information from being used.
-                if (
-                    collectionCache?.userId &&
-                    collectionCache.userId !== userId
-                ) {
-                    collectionCache = null;
-
-                    setRecords([]);
-                    setIsAdmin(false);
-                    setIsRoleReady(false);
-
-                    setFormData((previousData) => ({
-                        ...previousData,
-                        area: "",
-                    }));
-
-                    setIsLoadingRecords(true);
-                    setIsLoadingArea(true);
+                try {
+                    result = await getAdminWasteRecords();
+                    adminMode = true;
+                } catch (error) {
+                    if (error.status !== 403) throw error;
+                    result = await getMyWasteRecords();
                 }
 
-                // Restore cached information immediately.
-                const hasCache =
-                    collectionCache?.userId === userId;
+                if (!active) return;
 
-                if (hasCache) {
-                    setRecords(collectionCache.records || []);
-                    setIsAdmin(collectionCache.isAdmin ?? false);
-                    setIsRoleReady(true);
-                    setIsLoadingRecords(false);
+                setIsAdmin(adminMode);
+                setIsRoleReady(true);
+                setRecords((result.reports || []).map((report) =>
+                    formatRecord(report, adminMode)
+                ));
 
-                    if (collectionCache.area) {
-                        setFormData((previousData) => ({
-                            ...previousData,
-                            area: collectionCache.area,
-                        }));
+                // This loads the collection area only for residents.
+                if (!adminMode) {
+                    try {
+                        const response = await fetch(
+                            `${import.meta.env.VITE_API_URL}/api/profile`,
+                            {
+                                headers: {
+                                    Authorization: `Bearer ${token}`,
+                                },
+                            }
+                        );
 
-                        setIsLoadingArea(false);
+                        const profileResult = await response.json();
+
+                        if (!response.ok) {
+                            throw new Error(
+                                profileResult.message || "Unable to load profile area."
+                            );
+                        }
+
+                        const area = profileResult.profile?.matched_area || "";
+
+                        if (active) {
+                            setFormData((previous) => ({
+                                ...previous,
+                                area,
+                            }));
+
+                            setAreaError(
+                                area
+                                    ? ""
+                                    : "Please update your postcode in your profile first."
+                            );
+                        }
+                    } catch (error) {
+                        if (active) setAreaError(error.message);
                     }
                 }
-
-                // Refresh records.
-                const recordsPromise = loadRecords(
-                    userId,
-                    isMounted
-                );
-
-                // Refresh profile concurrently for a known normal user.
-                const profilePromise =
-                    hasCache && !collectionCache.isAdmin
-                        ? loadProfile(userId, token, isMounted)
-                        : null;
-
-                const adminMode = await recordsPromise;
-
-                if (!isMounted()) return;
-
-                if (adminMode) {
-                    setIsLoadingArea(false);
-                } else if (profilePromise) {
-                    await profilePromise;
-                } else {
-                    await loadProfile(userId, token, isMounted);
-                }
             } catch (error) {
-                if (isMounted()) {
-                    setRecordsError(error.message);
-                    setAreaError(error.message);
-                    setIsRoleReady(true);
+                if (active) setRecordsError(error.message);
+            } finally {
+                if (active) {
                     setIsLoadingArea(false);
                     setIsLoadingRecords(false);
+                    setIsRoleReady(true);
                 }
             }
         }
 
         loadData();
 
-        // Prevent state updates after leaving the page.
+        // This prevents state updates after the user leaves the page.
         return () => {
             active = false;
         };
     }, []);
 
-    // Handle form input changes.
+    // This updates the matching form field whenever the user types.
     function handleChange(event) {
         const { name, value } = event.target;
-
-        setFormData((previousData) => ({
-            ...previousData,
-            [name]: value,
-        }));
+        setFormData((previous) => ({ ...previous, [name]: value }));
     }
 
-    // Submit a new collection request.
+    // This validates and submits a new collection request.
     async function handleSubmit(event) {
         event.preventDefault();
 
         if (!formData.area) {
-            setAreaError(
-                "Please update your postcode in your profile first."
-            );
+            setAreaError("Please update your postcode in your profile first.");
             return;
         }
 
@@ -400,151 +179,92 @@ function CollectionRequests() {
         setSubmitError("");
 
         try {
-            // Prepare collection request data.
-            const requestData = {
+            const result = await createWasteRecord({
                 waste_type: formData.wasteType,
                 waste_weight: Number(formData.weight),
                 area: formData.area.trim(),
                 description: formData.description.trim(),
-            };
-
-            // Send collection request to the backend.
-            const result = await createWasteRecord(requestData);
-
-            if (!result.report) {
-                throw new Error(
-                    "The server did not return the saved record."
-                );
-            }
-
-            // Combine the saved record with submitted information.
-            const savedReport = {
-                ...requestData,
-                ...result.report,
-                waste_type:
-                    result.report.waste_type ?? requestData.waste_type,
-                waste_weight:
-                    result.report.waste_weight ?? requestData.waste_weight,
-                area: result.report.area ?? requestData.area,
-                description:
-                    result.report.description ?? requestData.description,
-            };
-
-            const newRecord = formatRecord(savedReport, false);
-
-            // Add the new record without fetching the entire table again.
-            setRecords((previousRecords) => {
-                const updatedRecords = [
-                    newRecord,
-                    ...previousRecords,
-                ];
-
-                updateCollectionCache({
-                    records: updatedRecords,
-                });
-
-                return updatedRecords;
             });
 
-            // Reset form but keep profile area.
-            setFormData((previousData) => ({
-                ...previousData,
+            if (!result.report) {
+                throw new Error("The server did not return the saved record.");
+            }
+
+            // This adds the saved record without fetching the table again.
+            setRecords((previous) => [
+                formatRecord(result.report),
+                ...previous,
+            ]);
+
+            // This clears the form while keeping the collection area.
+            setFormData((previous) => ({
+                ...previous,
                 wasteType: "",
                 weight: "",
                 description: "",
             }));
         } catch (error) {
-            setSubmitError(
-                error.message ||
-                "Unable to submit collection request."
-            );
+            setSubmitError(error.message || "Unable to submit collection request.");
         } finally {
             setIsSubmitting(false);
         }
     }
 
-    // Delete own Submitted waste record.
+    // This deletes the resident's own request after confirmation.
     async function handleDelete(id) {
-        const confirmed = window.confirm(
-            "Are you sure you want to delete this collection request?"
-        );
-
-        if (!confirmed) return;
+        if (
+            !window.confirm(
+                "Are you sure you want to delete this collection request?"
+            )
+        ) {
+            return;
+        }
 
         setDeletingId(id);
         setRecordsError("");
 
         try {
-            // Delete the record from the backend.
             await deleteWasteRecord(id);
 
-            // Remove the deleted record immediately.
-            setRecords((previousRecords) => {
-                const updatedRecords = previousRecords.filter(
-                    (record) => record.id !== id
-                );
-
-                updateCollectionCache({
-                    records: updatedRecords,
-                });
-
-                return updatedRecords;
-            });
-        } catch (error) {
-            setRecordsError(
-                error.message || "Unable to delete waste record."
+            // This removes the deleted record from the table.
+            setRecords((previous) =>
+                previous.filter((record) => record.id !== id)
             );
+        } catch (error) {
+            setRecordsError(error.message || "Unable to delete waste record.");
         } finally {
             setDeletingId(null);
         }
     }
 
-    // Admin: Update waste record status.
+    // This allows admins to update a request's status.
     async function handleStatusChange(id, status) {
-        if (!allowedStatuses.includes(status)) {
-            return;
-        }
+        if (!allowedStatuses.includes(status)) return;
 
         setUpdatingId(id);
         setRecordsError("");
 
         try {
-            // Update the record status in the backend.
             await updateAdminWasteRecordStatus(id, status);
 
-            // Reflect the confirmed status immediately.
-            setRecords((previousRecords) => {
-                const updatedRecords = previousRecords.map((record) =>
-                    record.id === id
-                        ? { ...record, status }
-                        : record
-                );
-
-                updateCollectionCache({
-                    records: updatedRecords,
-                });
-
-                return updatedRecords;
-            });
-        } catch (error) {
-            setRecordsError(
-                error.message || "Unable to update report status."
+            // This updates the displayed status after the backend confirms it.
+            setRecords((previous) =>
+                previous.map((record) =>
+                    record.id === id ? { ...record, status } : record
+                )
             );
+        } catch (error) {
+            setRecordsError(error.message || "Unable to update report status.");
         } finally {
             setUpdatingId(null);
         }
     }
 
-    // Display collection request page.
     return (
         <main className="collection-page">
             <div className="collection-heading">
-                <p className="collection-eyebrow">
-                    WASTE MANAGEMENT
-                </p>
-
+                <p className="collection-eyebrow">WASTE MANAGEMENT</p>
                 <h1>Collection Requests</h1>
-
                 <p>
                     {isAdmin
                         ? "View and manage submitted waste collection requests."
@@ -552,8 +272,8 @@ function CollectionRequests() {
                 </p>
             </div>
 
-            {/* Normal user collection form. */}
-            {isRoleReady && !isAdmin && (
+            {/* This form is displayed only after a normal user's role is confirmed. */}
+            {!isAdmin && isRoleReady && (
                 <section className="collection-panel">
                     <div className="collection-form-wrapper">
                         <div className="collection-form-content">
@@ -565,7 +285,6 @@ function CollectionRequests() {
                                         <label htmlFor="wasteType">
                                             Waste category
                                         </label>
-
                                         <select
                                             id="wasteType"
                                             name="wasteType"
@@ -577,12 +296,8 @@ function CollectionRequests() {
                                             <option value="">
                                                 Select category
                                             </option>
-
                                             {wasteCategories.map((category) => (
-                                                <option
-                                                    key={category}
-                                                    value={category}
-                                                >
+                                                <option key={category} value={category}>
                                                     {category}
                                                 </option>
                                             ))}
@@ -593,7 +308,6 @@ function CollectionRequests() {
                                         <label htmlFor="weight">
                                             Total waste weight (kg)
                                         </label>
-
                                         <input
                                             id="weight"
                                             name="weight"
@@ -612,19 +326,11 @@ function CollectionRequests() {
                                         <label htmlFor="area">
                                             Collection area
                                         </label>
-
                                         <div className="collection-auto-field">
-                                            {isLoadingArea && !formData.area ? (
-                                                <span className="area-loading">
-                                                    <span className="area-loading-spinner"></span>
-                                                    Loading area
-                                                </span>
-                                            ) : (
-                                                formData.area ||
-                                                "Area unavailable"
-                                            )}
+                                            {isLoadingArea && !formData.area
+                                                ? "Loading area"
+                                                : formData.area || "Area unavailable"}
                                         </div>
-
                                         {areaError && (
                                             <small className="text-danger">
                                                 {areaError}
@@ -636,7 +342,6 @@ function CollectionRequests() {
                                         <label htmlFor="description">
                                             Description
                                         </label>
-
                                         <input
                                             id="description"
                                             name="description"
@@ -650,10 +355,7 @@ function CollectionRequests() {
                                     </div>
 
                                     <div className="collection-field">
-                                        <label>
-                                            Submission date and time
-                                        </label>
-
+                                        <label>Submission date and time</label>
                                         <div className="collection-auto-field">
                                             Auto on submit
                                         </div>
@@ -661,7 +363,6 @@ function CollectionRequests() {
 
                                     <div className="collection-field">
                                         <label>Request status</label>
-
                                         <div className="collection-auto-field">
                                             Submitted
                                         </div>
@@ -671,10 +372,7 @@ function CollectionRequests() {
                                         <button
                                             type="submit"
                                             className="btn btn-kitaro collection-submit-btn"
-                                            disabled={
-                                                !formData.area ||
-                                                isSubmitting
-                                            }
+                                            disabled={!formData.area || isSubmitting}
                                         >
                                             {isSubmitting
                                                 ? "Submitting..."
@@ -694,14 +392,12 @@ function CollectionRequests() {
                 </section>
             )}
 
-            {/* Shared records table for normal users and admins. */}
+            {/* This table displays records for both residents and admins. */}
             <section className="collection-panel">
                 <div className="collection-records-heading">
                     <h2>Submitted Records</h2>
-
                     <span>
-                        {records.length} record
-                        {records.length !== 1 ? "s" : ""}
+                        {records.length} record{records.length !== 1 ? "s" : ""}
                     </span>
                 </div>
 
@@ -727,12 +423,9 @@ function CollectionRequests() {
                         </thead>
 
                         <tbody>
-                            {records.length === 0 && isLoadingRecords ? null : records.length === 0 ? (
+                            {!records.length && !isLoadingRecords ? (
                                 <tr>
-                                    <td
-                                        colSpan="8"
-                                        className="collection-empty"
-                                    >
+                                    <td colSpan="8" className="collection-empty">
                                         {isAdmin
                                             ? "No waste records found."
                                             : "No records yet. Submit your first collection request above."}
@@ -759,9 +452,7 @@ function CollectionRequests() {
                                                 <select
                                                     className="form-select"
                                                     value={record.status}
-                                                    disabled={
-                                                        updatingId === record.id
-                                                    }
+                                                    disabled={updatingId === record.id}
                                                     onChange={(event) =>
                                                         handleStatusChange(
                                                             record.id,
@@ -769,27 +460,18 @@ function CollectionRequests() {
                                                         )
                                                     }
                                                 >
-                                                    {allowedStatuses.map(
-                                                        (status) => (
-                                                            <option
-                                                                key={status}
-                                                                value={status}
-                                                            >
-                                                                {status}
-                                                            </option>
-                                                        )
-                                                    )}
+                                                    {allowedStatuses.map((status) => (
+                                                        <option key={status} value={status}>
+                                                            {status}
+                                                        </option>
+                                                    ))}
                                                 </select>
                                             ) : record.status === "Submitted" ? (
                                                 <button
                                                     type="button"
                                                     className="btn btn-sm btn-outline-danger"
-                                                    onClick={() =>
-                                                        handleDelete(record.id)
-                                                    }
-                                                    disabled={
-                                                        deletingId === record.id
-                                                    }
+                                                    onClick={() => handleDelete(record.id)}
+                                                    disabled={deletingId === record.id}
                                                 >
                                                     {deletingId === record.id
                                                         ? "Deleting..."
@@ -810,5 +492,4 @@ function CollectionRequests() {
     );
 }
 
-// Export CollectionRequests for use in other components.
 export default CollectionRequests;
