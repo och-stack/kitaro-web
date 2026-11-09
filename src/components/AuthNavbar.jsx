@@ -8,6 +8,7 @@ function AuthNavbar() {
             <div className="container">
                 {/* KITARO brand logo links to the landing page. */}
                 <Link className="navbar-brand kitaro-brand" to="/">
+                    <img src="/kitaro-favicon.svg" alt="KITARO" />
                     KITARO
                 </Link>
 

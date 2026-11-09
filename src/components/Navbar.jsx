@@ -36,6 +36,7 @@ function Navbar() {
             <div className="container">
                 {/* KITARO brand logo links to the dashboard. */}
                 <Link className="navbar-brand kitaro-brand" to="/dashboard">
+                    <img src="/kitaro-favicon.svg" alt="KITARO" />
                     KITARO
                 </Link>
 

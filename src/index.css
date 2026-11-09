@@ -998,3 +998,9 @@ body {
   color: #47736d;
   font-size: 14px;
 }
+
+.kitaro-brand img {
+  width: 32px;
+  height: 32px;
+  margin-right: 8px;
+}
