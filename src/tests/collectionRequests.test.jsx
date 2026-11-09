@@ -1,4 +1,3 @@
-
 import {
     describe,
     it,
@@ -18,11 +17,30 @@ import {
 import userEvent from "@testing-library/user-event";
 import CollectionRequests from "../pages/CollectionRequests";
 
+// Store the authentication listener for cache reset.
+const { mockAuthListener } = vi.hoisted(() => ({
+    mockAuthListener: {
+        callback: null,
+    },
+}));
+
 // Mock Supabase authentication.
 vi.mock("../supabaseClient", () => ({
     default: {
         auth: {
             getSession: vi.fn(),
+
+            onAuthStateChange: vi.fn((callback) => {
+                mockAuthListener.callback = callback;
+
+                return {
+                    data: {
+                        subscription: {
+                            unsubscribe: vi.fn(),
+                        },
+                    },
+                };
+            }),
         },
     },
 }));
@@ -68,9 +86,12 @@ describe("Collection Requests Page", () => {
     beforeEach(() => {
         vi.clearAllMocks();
 
+        // Clear cached collection information between tests.
+        mockAuthListener.callback?.("SIGNED_OUT");
+
         vi.stubEnv("VITE_API_URL", "http://localhost:3000");
 
-        // This provides a logged-in user for each test.
+        // Mock the current user's session.
         supabase.auth.getSession.mockResolvedValue({
             data: {
                 session: mockSession,
@@ -78,17 +99,18 @@ describe("Collection Requests Page", () => {
             error: null,
         });
 
-        // This identifies a normal user when admin access is denied.
+        // Normal users receive 403 from the admin endpoint.
         getAdminWasteRecords.mockRejectedValue({
             status: 403,
             message: "Forbidden",
         });
 
+        // Normal users have no existing records by default.
         getMyWasteRecords.mockResolvedValue({
             reports: [],
         });
 
-        // This returns the user's collection area.
+        // Return the user's collection area.
         vi.stubGlobal(
             "fetch",
             vi.fn().mockResolvedValue({
@@ -149,7 +171,7 @@ describe("Collection Requests Page", () => {
         await screen.findByText("Rawang");
     });
 
-    it("displays the form while the profile request is loading", async () => {
+    it("displays the form and records table before the profile request finishes", async () => {
         let resolveProfile;
 
         fetch.mockImplementation(
@@ -161,27 +183,33 @@ describe("Collection Requests Page", () => {
 
         render(<CollectionRequests />);
 
+        // Wait until the normal user form appears.
         expect(
             await screen.findByRole("button", {
                 name: /submit request/i,
             })
         ).toBeInTheDocument();
 
+        // The records table is already visible.
         expect(
             screen.getByRole("heading", {
                 name: /submitted records/i,
             })
         ).toBeInTheDocument();
 
-        expect(screen.getByText("Loading area")).toBeInTheDocument();
+        // The profile request has not finished.
+        expect(
+            screen.getByText("Loading area")
+        ).toBeInTheDocument();
 
+        // Submit button is visible but cannot submit without an area.
         expect(
             screen.getByRole("button", {
                 name: /submit request/i,
             })
         ).toBeDisabled();
 
-        // This finishes loading the collection area.
+        // Finish the profile request.
         resolveProfile({
             ok: true,
             json: async () => ({
@@ -208,19 +236,13 @@ describe("Collection Requests Page", () => {
         expect(categorySelect).toHaveDisplayValue("Select category");
 
         expect(
-            screen.getByRole("option", {
-                name: "General / Residual Waste & Food Waste",
-            })
+            screen.getByRole("option", { name: "Plastic" })
         ).toBeInTheDocument();
 
         expect(
             screen.getByRole("option", {
                 name: "Paper & Cardboard",
             })
-        ).toBeInTheDocument();
-
-        expect(
-            screen.getByRole("option", { name: "Plastic" })
         ).toBeInTheDocument();
 
         expect(
@@ -236,6 +258,8 @@ describe("Collection Requests Page", () => {
                 name: "Electronic Waste (E-waste)",
             })
         ).toBeInTheDocument();
+
+        await screen.findByText("Rawang");
     });
 
     it("loads the user's collection area", async () => {
@@ -275,7 +299,6 @@ describe("Collection Requests Page", () => {
         expect(
             await screen.findByRole("cell", { name: "Plastic" })
         ).toBeInTheDocument();
-
         expect(screen.getByText("2.50")).toBeInTheDocument();
         expect(screen.getAllByText("Rawang")).toHaveLength(2);
         expect(screen.getByText("Plastic bottles")).toBeInTheDocument();
@@ -292,7 +315,7 @@ describe("Collection Requests Page", () => {
         expect(await screen.findByText("1 record")).toBeInTheDocument();
     });
 
-    it("checks admin access before loading resident records", async () => {
+    it("requests admin and user records simultaneously", async () => {
         render(<CollectionRequests />);
 
         await waitFor(() => {
@@ -344,7 +367,7 @@ describe("Collection Requests Page", () => {
             });
         });
 
-        // This checks that the new record appears without another API request.
+        // The saved record appears without another records API request.
         expect(await screen.findByText("2.50")).toBeInTheDocument();
 
         expect(getMyWasteRecords).toHaveBeenCalledTimes(1);
@@ -426,7 +449,7 @@ describe("Collection Requests Page", () => {
 
         expect(window.confirm).toHaveBeenCalled();
 
-        // This checks that the deleted record disappears from the table.
+        // The record disappears without another records API request.
         expect(
             await screen.findByText(
                 "No records yet. Submit your first collection request above."
@@ -460,7 +483,7 @@ describe("Collection Requests Page", () => {
 
     // Admin permission tests.
 
-    it("displays admin records without the resident submission form", async () => {
+    it("displays admin records without the user submission form", async () => {
         getAdminWasteRecords.mockResolvedValue({
             reports: [
                 {
@@ -484,9 +507,11 @@ describe("Collection Requests Page", () => {
             })
         ).not.toBeInTheDocument();
 
-        // Admin accounts do not need to load the resident profile.
+        // Admin accounts do not need to load their profile area.
         expect(fetch).not.toHaveBeenCalled();
-        expect(getMyWasteRecords).not.toHaveBeenCalled();
+
+        // Both record endpoints are requested in parallel.
+        expect(getMyWasteRecords).toHaveBeenCalledTimes(1);
     });
 
     it("allows an admin to update a report status", async () => {
@@ -511,9 +536,11 @@ describe("Collection Requests Page", () => {
             );
         });
 
-        // This checks that the updated status appears without another API request.
+        // The updated status appears without fetching records again.
         await waitFor(() => {
-            expect(screen.getByDisplayValue("Going")).toBeInTheDocument();
+            expect(
+                screen.getByDisplayValue("Going")
+            ).toBeInTheDocument();
         });
 
         expect(getAdminWasteRecords).toHaveBeenCalledTimes(1);
