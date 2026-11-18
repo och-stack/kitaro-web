@@ -6,7 +6,7 @@ This repository contains the frontend application built with **React and Vite**,
 
 ## Project Plan
 
-Refer to the [KITARO Project Plan](https://acrobat.adobe.com/id/urn:aaid:sc:AP:b0e3882e-c589-4e50-937f-3a83df40e3d3?x_api_client_id=chrome_extension_viewer&x_api_client_location=share) for the project objectives, scope, features and design direction.
+Refer to the for the project objectives, scope, features and design direction.
 
 ## Tech Stack
 
